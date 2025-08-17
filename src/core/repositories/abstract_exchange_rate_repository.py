@@ -32,6 +32,9 @@ class AbstractExchangeRateRepository(ABC):
 
         Raises
         ------
+            - InvalidParameterError: If the exchange rate provided has the same
+                from_currency and to_currency parameter. This is not allowed, even if
+                the rate value is 1.
             - DuplicateEntityError: If that exchange rate is already present in db.
             - RepositoryError: If something went wrong with the database
 

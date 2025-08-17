@@ -2,7 +2,12 @@ import sqlite3
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
+from src.core.exceptions import (
+    DuplicateEntityError,
+    EntityNotFoundError,
+    InvalidParameterError,
+    RepositoryError,
+)
 from src.core.repositories.abstract_exchange_rate_repository import AbstractExchangeRateRepository
 
 
@@ -47,6 +52,11 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
                 raise DuplicateEntityError("Unique constrainnt error") from e
+
+            elif "CHECK constraint failed" in str(e):
+                raise InvalidParameterError(
+                    "Exchange rate can't have the same from_currency and to_currency value"
+                ) from e
 
             raise RepositoryError("Error while adding exchange rates.") from e
 

@@ -2,7 +2,9 @@ import random
 from datetime import date
 
 import pytest
+
 from src.core.domain.exchange_rate import ExchangeRate
+from src.core.exceptions import InvalidParameterError
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -68,6 +70,19 @@ def test_add_exchange_rate(db_env: str) -> None:
             )
 
             assert exc == exc_get[0]
+
+        try:
+            exc = ExchangeRate(
+                from_currency="EUR",
+                to_currency="EUR",
+                rate=1,
+                rate_date=date(2025, 1, 1),
+                is_updated=True,
+            )
+
+            uow.exchange_rate.add(exc)
+        except InvalidParameterError:
+            assert True
 
 
 def test_get_exchange_rate(db_env) -> None:
