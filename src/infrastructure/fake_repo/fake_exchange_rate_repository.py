@@ -45,8 +45,21 @@ class FakeExchangeRateRepository(AbstractExchangeRateRepository):
         ).rate_date
         return [r for r in self._exchange_rates if r.rate_date == closest_date]
 
-    def get_not_updated(self) -> list[ExchangeRate]:
-        return [r for r in self._exchange_rates if not r.is_updated]
+    def get_not_updated(
+        self,
+        begin_date: date | None,
+        end_date: date | None,
+    ) -> list[ExchangeRate]:
+        if begin_date is None:
+            begin_date = date(1, 1, 1)
+
+        if end_date is None:
+            end_date = date(9999, 12, 31)
+        return [
+            r
+            for r in self._exchange_rates
+            if not r.is_updated and r.rate_date >= begin_date and r.rate_date <= end_date
+        ]
 
     def get_missing_rates_dates(self, date_list: list[date] | date) -> list[date]:
         if not isinstance(date_list, list):
