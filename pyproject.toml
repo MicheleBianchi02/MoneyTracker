@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = .
-
+testpaths = ["."]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
