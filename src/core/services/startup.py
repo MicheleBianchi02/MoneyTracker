@@ -1,0 +1,204 @@
+import threading
+from datetime import date, timedelta
+
+from src.core.domain.exchange_rate import ExchangeRate
+from src.core.exceptions import (
+    ExchangeRateApiError,
+    ServiceError,
+)
+from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+
+# This is the name of the column saved in the database. It contains the starting date
+# from which the exchange rate started to get saved. This string should never change.
+EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
+
+
+# TODO: If the exchange rates for some currencies will never be found (eg for withdrawn
+# currencies like LTL or LVL) we are continuing to add not_updated exchange rate with
+# value = 1 into the database. This is not the best, because after it we are trying to
+# updated them. This add useless data to the database. Also, those rates will always
+# have rate = 1. That make them unusable. Decide if it's better to remove them or to
+# add some custom behaviour to them (considering the currency and the date)
+# For old one it is ok to remove them since they will never be used. Maybe it can be
+# usefull to add a custom feature that permit to use them is some ways (like converting
+# past transaction in those currencies to the defualt one).
+# For currencies that will be withdrawn in the future it's not possible to know it now.
+
+
+def startup(uow: AbstractUnitOfWork) -> None:
+    try:
+        add_exc_thread = threading.Thread(
+            target=_add_exchange_rate,
+            args=(uow,),
+            daemon=True,
+        )
+
+        add_exc_thread.start()
+
+    except Exception as e:
+        raise ServiceError() from e
+
+    # BUG: Creating another thread to update the exchange rate is a problem since
+    # in the add thread we can add not updated exchange rate
+    # Can do it if we don't edit the same paramter. See below
+
+    # Thread should not share the same sqlite connection
+
+    # put exc update in another thread
+
+
+# In the _add_exchange_rate function, if the connection isn't present (or something else
+# goes wrong) the exchange rate are not added. It means that they are added only when the
+# updated value is present. Not updated exchange rate can be added in that date range,
+# but calling _update_exchange_rate in that date range will never update them (because
+# the exchange rate is not provided by the API, ie nothing will be returned by the
+# exchange rate provider).
+# TODO: What happen if something went wrong with the provider and only some exchange rate
+# are not provided by the API (eg the provider had some problem on certain currency
+# and solve some time later, ie the exchange rate become available in the future?).
+# Since each time the user uses that currency he will get a non updated warning, we can
+# add a button in the settings that scan all the non updated exchange rate (indipendently
+# on the date range) and try to update all the not updated exchange rate. We can also
+# call _add_exchange_rate (for example when at startup the connection is not present but
+# it get activated after a while => no need to close and reopen the app)
+def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
+    exc_provider = ExchangeRateProvider()
+
+    with uow:
+        first_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+        first_date = date.fromisoformat(first_date)
+
+        end_date_range = first_date - timedelta(days=1)
+
+        not_updated_rates = uow.exchange_rate.get_not_updated(None, end_date_range)
+
+        not_updated_dict = {}
+        # Assuming all exchange rates have the same from_currency
+        for exc in not_updated_rates:
+            exc_date = exc.rate_date.isoformat()
+            not_updated_dict.setdefault(exc_date, set())
+            not_updated_dict[exc_date].add(exc.to_currency)
+
+
+def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
+    exc_provider = ExchangeRateProvider()
+    max_date = exc_provider.maximum_available_date
+    currencies = exc_provider.available_currencies
+    with uow:
+        today = date.today()
+        latest_exc = uow.exchange_rate.get_closest(today)
+
+        if latest_exc:
+            start_date = latest_exc[0].rate_date + timedelta(days=1)
+
+            if start_date < max_date:
+                date_list = []
+
+                exc_date = start_date
+                while exc_date < max_date:
+                    date_list.append(exc_date)
+                    exc_date += timedelta(days=1)
+
+            try:
+                exc_rates, not_available_exc = exc_provider.get_exchange_rate(
+                    date_list,
+                    currencies,
+                )
+
+            except ExchangeRateApiError:
+                # TODO: Add logging
+
+                exc_rates = []
+                not_available_exc = {}
+
+            if exc_rates:
+                # In some cases, the exchange rates are not available even if everything
+                # is ok with the server (e.g. for withdrawn currencies like LTL or LVL)
+                if len(not_available_exc.keys()) != 1:
+                    from_currency = not_available_exc["from_currency"]
+                    del not_available_exc["from_currency"]
+
+                    for exc_date, curr_list in not_available_exc.items():
+                        exc_date = date.fromisoformat(exc_date)
+
+                        for curr in curr_list:
+                            exc = ExchangeRate(
+                                from_currency=from_currency,
+                                to_currency=curr,
+                                rate=1,
+                                rate_date=exc_date,
+                                is_updated=False,
+                            )
+
+                            exc_rates.append(exc)
+
+                uow.exchange_rate.add(exc_rates)
+
+        else:
+            first_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+
+            if first_date is None:
+                year = date.today().year
+
+                first_date = date(year, 1, 1)
+
+                day_diff = (date.today() - first_date).days
+                if day_diff <= 1:
+                    first_date = date(year - 1, 1, 1)
+
+                first_date_str = f"{year}-01-01"
+
+                uow.app_config.add(EXC_DATE_CONFIG_NAME, first_date_str)
+
+            # It can happen that the first_date is present in app_config even if the
+            # exchange rate table is empty. For example if when the first time this function
+            # is run, there is no internet connection the returned exc_rates will be empty.
+            # In this case the exchange rates will be added at the next startup.
+
+            # TODO: What happen if the user, at first starup, has no internet connection
+            # and, in the same session, add some transaction in different dates in the
+            # past but within the same year? And what if he call get_summary where
+            # exchange rates are required? (and if the currency is always the same?)
+
+            date_list = []
+
+            exc_date = first_date
+            while exc_date < max_date:
+                date_list.append(exc_date)
+                exc_date += timedelta(days=1)
+
+            try:
+                exc_rates, not_available_exc = exc_provider.get_exchange_rate(
+                    date_list,
+                    currencies,
+                )
+
+            except ExchangeRateApiError:
+                # TODO: Add logging
+
+                exc_rates = []
+                not_available_exc = {}
+
+            if exc_rates:
+                # In some cases, the exchange rates are not available even if everything
+                # is ok with the server (e.g. for withdrawn currencies like LTL or LVL)
+                if len(not_available_exc.keys()) != 1:
+                    from_currency = not_available_exc["from_currency"]
+                    del not_available_exc["from_currency"]
+
+                    for exc_date, curr_list in not_available_exc.items():
+                        exc_date = date.fromisoformat(exc_date)
+
+                        for curr in curr_list:
+                            exc = ExchangeRate(
+                                from_currency=from_currency,
+                                to_currency=curr,
+                                rate=1,
+                                rate_date=exc_date,
+                                is_updated=False,
+                            )
+
+                            exc_rates.append(exc)
+
+                uow.exchange_rate.add(exc_rates)

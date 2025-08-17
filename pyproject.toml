@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my_package"
+version = "0.1.0"
+description = "A short description of my project"
+authors = [
+  { name="Michele Bianchi"}
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12.3"
+dependencies = [
+"pydantic==2.11.7",
+"pytest==8.3.5",
+"Requests==2.32.4]"
+]
+
+[tool.pytest.ini_options]
+pythonpath = .
+
+
+[tool.ruff]
+line-length = 100

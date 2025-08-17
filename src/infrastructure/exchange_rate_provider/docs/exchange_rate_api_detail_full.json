@@ -1,0 +1,602 @@
+{
+  "header": {
+    "id": "b74a9612-360b-4613-bca3-08b7a78c71bc",
+    "test": false,
+    "prepared": "2025-04-11T21:47:05.194+02:00",
+    "sender": {
+      "id": "ECB"
+    }
+  },
+  "dataSets": [
+    {
+      "action": "Replace",
+      "validFrom": "2025-04-11T21:47:05.194+02:00",
+      "series": {
+        "0:0:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            null,
+            0,
+            0,
+            0,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [1.6624, 1, null, null, null],
+            "2": [1.6731, 1, null, null, null],
+            "3": [1.6757, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:1:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            null,
+            1,
+            1,
+            1,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [1.4265, 1, null, null, null],
+            "2": [1.4389, 1, null, null, null],
+            "3": [1.4449, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:2:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            null,
+            2,
+            2,
+            2,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [1.6682, 1, null, null, null],
+            "2": [1.6604, 1, null, null, null],
+            "3": [1.6547, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:3:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            null,
+            3,
+            3,
+            3,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [10.6221, 1, null, null, null],
+            "2": [10.7312, 1, null, null, null],
+            "3": [10.7524, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:4:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            0,
+            null,
+            4,
+            4,
+            4,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [0.72885, 1, null, null, null],
+            "2": [0.7348, 1, null, null, null],
+            "3": [0.73335, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:5:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            2,
+            null,
+            0,
+            null,
+            5,
+            5,
+            5,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [166.22, 1, null, null, null],
+            "2": [166.13, 1, null, null, null],
+            "3": [164.93, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        },
+        "0:6:0:0:0": {
+          "attributes": [
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            null,
+            6,
+            6,
+            6,
+            0
+          ],
+          "observations": {
+            "0": [null, 0, null, null, null],
+            "1": [1.4516, 1, null, null, null],
+            "2": [1.4692, 1, null, null, null],
+            "3": [1.4721, 1, null, null, null],
+            "4": [null, 0, null, null, null]
+          }
+        }
+      }
+    }
+  ],
+  "structure": {
+    "links": [
+      {
+        "title": "Exchange Rates",
+        "rel": "dataflow",
+        "href": "http://data-api.ecb.europa.eu:80/service/dataflow/ECB/EXR/1.0"
+      }
+    ],
+    "name": "Exchange Rates",
+    "dimensions": {
+      "series": [
+        {
+          "id": "FREQ",
+          "name": "Frequency",
+          "values": [
+            {
+              "id": "D",
+              "name": "Daily"
+            }
+          ]
+        },
+        {
+          "id": "CURRENCY",
+          "name": "Currency",
+          "values": [
+            {
+              "id": "AUD",
+              "name": "Australian dollar"
+            },
+            {
+              "id": "CAD",
+              "name": "Canadian dollar"
+            },
+            {
+              "id": "CHF",
+              "name": "Swiss franc"
+            },
+            {
+              "id": "CNY",
+              "name": "Chinese yuan renminbi"
+            },
+            {
+              "id": "GBP",
+              "name": "UK pound sterling"
+            },
+            {
+              "id": "JPY",
+              "name": "Japanese yen"
+            },
+            {
+              "id": "USD",
+              "name": "US dollar"
+            }
+          ]
+        },
+        {
+          "id": "CURRENCY_DENOM",
+          "name": "Currency denominator",
+          "values": [
+            {
+              "id": "EUR",
+              "name": "Euro"
+            }
+          ]
+        },
+        {
+          "id": "EXR_TYPE",
+          "name": "Exchange rate type",
+          "values": [
+            {
+              "id": "SP00",
+              "name": "Spot"
+            }
+          ]
+        },
+        {
+          "id": "EXR_SUFFIX",
+          "name": "Series variation - EXR context",
+          "values": [
+            {
+              "id": "A",
+              "name": "Average"
+            }
+          ]
+        }
+      ],
+      "observation": [
+        {
+          "id": "TIME_PERIOD",
+          "name": "Time period or range",
+          "role": "time",
+          "values": [
+            {
+              "id": "2007-12-26",
+              "name": "2007-12-26",
+              "start": "2007-12-26T00:00:00.000+01:00",
+              "end": "2007-12-26T23:59:59.999+01:00"
+            },
+            {
+              "id": "2007-12-27",
+              "name": "2007-12-27",
+              "start": "2007-12-27T00:00:00.000+01:00",
+              "end": "2007-12-27T23:59:59.999+01:00"
+            },
+            {
+              "id": "2007-12-28",
+              "name": "2007-12-28",
+              "start": "2007-12-28T00:00:00.000+01:00",
+              "end": "2007-12-28T23:59:59.999+01:00"
+            },
+            {
+              "id": "2007-12-31",
+              "name": "2007-12-31",
+              "start": "2007-12-31T00:00:00.000+01:00",
+              "end": "2007-12-31T23:59:59.999+01:00"
+            },
+            {
+              "id": "2008-01-01",
+              "name": "2008-01-01",
+              "start": "2008-01-01T00:00:00.000+01:00",
+              "end": "2008-01-01T23:59:59.999+01:00"
+            }
+          ]
+        }
+      ]
+    },
+    "attributes": {
+      "series": [
+        {
+          "id": "TIME_FORMAT",
+          "name": "Time format code",
+          "values": [
+            {
+              "name": "P1D"
+            }
+          ]
+        },
+        {
+          "id": "BREAKS",
+          "name": "Breaks",
+          "values": []
+        },
+        {
+          "id": "COLLECTION",
+          "name": "Collection indicator",
+          "values": [
+            {
+              "id": "A",
+              "name": "Average of observations through period"
+            }
+          ]
+        },
+        {
+          "id": "COMPILING_ORG",
+          "name": "Compiling organisation",
+          "values": []
+        },
+        {
+          "id": "DISS_ORG",
+          "name": "Data dissemination organisation",
+          "values": []
+        },
+        {
+          "id": "DOM_SER_IDS",
+          "name": "Domestic series ids",
+          "values": []
+        },
+        {
+          "id": "PUBL_ECB",
+          "name": "Source publication (ECB only)",
+          "values": []
+        },
+        {
+          "id": "PUBL_MU",
+          "name": "Source publication (Euro area only)",
+          "values": []
+        },
+        {
+          "id": "PUBL_PUBLIC",
+          "name": "Source publication (public)",
+          "values": []
+        },
+        {
+          "id": "UNIT_INDEX_BASE",
+          "name": "Unit index base",
+          "values": []
+        },
+        {
+          "id": "COMPILATION",
+          "name": "Compilation",
+          "values": []
+        },
+        {
+          "id": "COVERAGE",
+          "name": "Coverage",
+          "values": []
+        },
+        {
+          "id": "DECIMALS",
+          "name": "Decimals",
+          "values": [
+            {
+              "id": "4",
+              "name": "Four"
+            },
+            {
+              "id": "5",
+              "name": "Five"
+            },
+            {
+              "id": "2",
+              "name": "Two"
+            }
+          ]
+        },
+        {
+          "id": "NAT_TITLE",
+          "name": "National language title",
+          "values": []
+        },
+        {
+          "id": "SOURCE_AGENCY",
+          "name": "Source agency",
+          "values": [
+            {
+              "id": "4F0",
+              "name": "European Central Bank (ECB)"
+            }
+          ]
+        },
+        {
+          "id": "SOURCE_PUB",
+          "name": "Publication source",
+          "values": []
+        },
+        {
+          "id": "TITLE",
+          "name": "Title",
+          "values": [
+            {
+              "name": "Euro/Australian dollar"
+            },
+            {
+              "name": "Euro/Canadian dollar"
+            },
+            {
+              "name": "Euro/Swiss franc"
+            },
+            {
+              "name": "Euro/Chinese yuan renminbi"
+            },
+            {
+              "name": "Euro/UK pound sterling"
+            },
+            {
+              "name": "Euro/Japanese yen"
+            },
+            {
+              "name": "Euro/US dollar"
+            }
+          ]
+        },
+        {
+          "id": "TITLE_COMPL",
+          "name": "Title complement",
+          "values": [
+            {
+              "name": "ECB reference exchange rate, Euro/Australian dollar, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/Canadian dollar, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/Swiss franc, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/Chinese yuan renminbi, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/UK pound sterling, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/Japanese yen, 2:15 pm (C.E.T.)"
+            },
+            {
+              "name": "ECB reference exchange rate, Euro/US dollar, 2:15 pm (C.E.T.)"
+            }
+          ]
+        },
+        {
+          "id": "UNIT",
+          "name": "Unit",
+          "values": [
+            {
+              "id": "AUD",
+              "name": "Australian dollar"
+            },
+            {
+              "id": "CAD",
+              "name": "Canadian dollar"
+            },
+            {
+              "id": "CHF",
+              "name": "Swiss franc"
+            },
+            {
+              "id": "CNY",
+              "name": "Chinese yuan renminbi"
+            },
+            {
+              "id": "GBP",
+              "name": "UK pound sterling"
+            },
+            {
+              "id": "JPY",
+              "name": "Japanese yen"
+            },
+            {
+              "id": "USD",
+              "name": "US dollar"
+            }
+          ]
+        },
+        {
+          "id": "UNIT_MULT",
+          "name": "Unit multiplier",
+          "values": [
+            {
+              "id": "0",
+              "name": "Units"
+            }
+          ]
+        }
+      ],
+      "observation": [
+        {
+          "id": "OBS_STATUS",
+          "name": "Observation status",
+          "values": [
+            {
+              "id": "H",
+              "name": "Missing value; holiday or weekend"
+            },
+            {
+              "id": "A",
+              "name": "Normal value"
+            }
+          ]
+        },
+        {
+          "id": "OBS_CONF",
+          "name": "Observation confidentiality",
+          "values": []
+        },
+        {
+          "id": "OBS_PRE_BREAK",
+          "name": "Pre-break observation value",
+          "values": []
+        },
+        {
+          "id": "OBS_COM",
+          "name": "Observation comment",
+          "values": []
+        }
+      ]
+    }
+  }
+}

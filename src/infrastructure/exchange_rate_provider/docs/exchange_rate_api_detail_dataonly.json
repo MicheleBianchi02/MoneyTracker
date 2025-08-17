@@ -1,0 +1,208 @@
+{
+  "header": {
+    "id": "c88b28a3-61c0-4f17-b16e-03bb2e1f99a1",
+    "test": false,
+    "prepared": "2025-04-11T13:49:50.887+02:00",
+    "sender": {
+      "id": "ECB"
+    }
+  },
+  "dataSets": [
+    {
+      "action": "Replace",
+      "validFrom": "2025-04-11T13:49:50.887+02:00",
+      "series": {
+        "0:0:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [2.0595],
+            "2": [2.0435],
+            "3": [2.0274],
+            "4": [null]
+          }
+        },
+        "0:1:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [1.7408],
+            "2": [1.7331],
+            "3": [1.6998],
+            "4": [null]
+          }
+        },
+        "0:2:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [1.4931],
+            "2": [1.4963],
+            "3": [1.485],
+            "4": [null]
+          }
+        },
+        "0:3:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [9.7788],
+            "2": [9.6364],
+            "3": [9.4956],
+            "4": [null]
+          }
+        },
+        "0:4:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [0.97855],
+            "2": [0.9742],
+            "3": [0.9525],
+            "4": [null]
+          }
+        },
+        "0:5:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [128.98],
+            "2": [127.4],
+            "3": [126.14],
+            "4": [null]
+          }
+        },
+        "0:6:0:0:0": {
+          "observations": {
+            "0": [null],
+            "1": [1.427],
+            "2": [1.4098],
+            "3": [1.3917],
+            "4": [null]
+          }
+        }
+      }
+    }
+  ],
+  "structure": {
+    "links": [
+      {
+        "title": "Exchange Rates",
+        "rel": "dataflow",
+        "href": "http://data-api.ecb.europa.eu:80/service/dataflow/ECB/EXR/1.0"
+      }
+    ],
+    "name": "Exchange Rates",
+    "dimensions": {
+      "series": [
+        {
+          "id": "FREQ",
+          "name": "Frequency",
+          "values": [
+            {
+              "id": "D",
+              "name": "Daily"
+            }
+          ]
+        },
+        {
+          "id": "CURRENCY",
+          "name": "Currency",
+          "values": [
+            {
+              "id": "AUD",
+              "name": "Australian dollar"
+            },
+            {
+              "id": "CAD",
+              "name": "Canadian dollar"
+            },
+            {
+              "id": "CHF",
+              "name": "Swiss franc"
+            },
+            {
+              "id": "CNY",
+              "name": "Chinese yuan renminbi"
+            },
+            {
+              "id": "GBP",
+              "name": "UK pound sterling"
+            },
+            {
+              "id": "JPY",
+              "name": "Japanese yen"
+            },
+            {
+              "id": "USD",
+              "name": "US dollar"
+            }
+          ]
+        },
+        {
+          "id": "CURRENCY_DENOM",
+          "name": "Currency denominator",
+          "values": [
+            {
+              "id": "EUR",
+              "name": "Euro"
+            }
+          ]
+        },
+        {
+          "id": "EXR_TYPE",
+          "name": "Exchange rate type",
+          "values": [
+            {
+              "id": "SP00",
+              "name": "Spot"
+            }
+          ]
+        },
+        {
+          "id": "EXR_SUFFIX",
+          "name": "Series variation - EXR context",
+          "values": [
+            {
+              "id": "A",
+              "name": "Average"
+            }
+          ]
+        }
+      ],
+      "observation": [
+        {
+          "id": "TIME_PERIOD",
+          "name": "Time period or range",
+          "role": "time",
+          "values": [
+            {
+              "id": "2008-12-26",
+              "name": "2008-12-26",
+              "start": "2008-12-26T00:00:00.000+01:00",
+              "end": "2008-12-26T23:59:59.999+01:00"
+            },
+            {
+              "id": "2008-12-29",
+              "name": "2008-12-29",
+              "start": "2008-12-29T00:00:00.000+01:00",
+              "end": "2008-12-29T23:59:59.999+01:00"
+            },
+            {
+              "id": "2008-12-30",
+              "name": "2008-12-30",
+              "start": "2008-12-30T00:00:00.000+01:00",
+              "end": "2008-12-30T23:59:59.999+01:00"
+            },
+            {
+              "id": "2008-12-31",
+              "name": "2008-12-31",
+              "start": "2008-12-31T00:00:00.000+01:00",
+              "end": "2008-12-31T23:59:59.999+01:00"
+            },
+            {
+              "id": "2009-01-01",
+              "name": "2009-01-01",
+              "start": "2009-01-01T00:00:00.000+01:00",
+              "end": "2009-01-01T23:59:59.999+01:00"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
