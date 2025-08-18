@@ -73,6 +73,19 @@ class CategoryNotFoundError(ServiceError):
         self.details = details or {}
 
 
+class InvalidCategoryError(ServiceError):
+    """Raised when an invalid category is passed to a service.
+    E.g. when the category is an income but has a not null secondary."""
+
+    pass
+
+
+class DuplicateCategoryError(ServiceError):
+    """Raised when trying to add an already existing category to the database."""
+
+    pass
+
+
 class TransactionNotFoundError(ServiceError):
     """Raised when a Transaction is not found in the database. Used, for example,
     when editing or deleting a transaction with the given id."""
