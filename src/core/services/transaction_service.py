@@ -2,7 +2,7 @@ import calendar
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
-from src.core.domain.transaction import TransactionIn
+from src.core.domain.transaction import TransactionIn, TransactionOut
 from src.core.exceptions import (
     EntityNotFoundError,
     ExchangeRateApiError,
@@ -158,6 +158,231 @@ class TransactionServices:
                             exc_rates.append(exc)
 
             uow.exchange_rate.add(exc_rates)
+
+    def get_transaction(
+        self,
+        uow: AbstractUnitOfWork,
+        id_user: int,
+        begin_date: date | None,
+        end_date: date | None,
+        tr_type: str | None = None,
+        primary: str | None = None,
+        secondary: str | None = None,
+    ) -> list[TransactionOut]:
+        """Get transaction from database in a given date range.
+
+        The priority order is tr_type > primary > secondary. It means that if the
+        primary is not None but tr_type is None, then the value of primary is ignored.
+        The same is true for secondary.
+
+        Parameters
+        ----------
+            - id_user (int) : id of the user
+            - begin_date (datetime.date or None) : starting date of the date range.
+                If None there is no inferior limit (all transaction up to end_date)
+            - end_date (datetime.date or None) : ending date of the date range.
+                If None there is no superior limit (all transaction from starting date).
+            - exp_type (str or None) : type of transaction, can be 'income' or 'expense'.
+                If None both type are returned. By default it is set to None,
+            - primary (str or None) : primary of the required transactrions list. If None
+                all transactions (indipendently on the primary) are returned.
+                By default it's set to None
+            - secondary (str or None) : secondary of the required transactrions list. If None
+                all transactions (indipendently on the secondary) are returned. If
+                this argument is not None, tr_type should not be 'income'.
+                By default it's set to None.
+
+
+        Returns
+        -------
+            List containing all the transaction (instances of TransactionOut). Note: even
+            if there is only one transaction a list containing only one element is returned.
+            If no transaction is found, an empty list is returned.
+
+        Raises
+        ------
+            ServiceError: If something went wrong with the repository or the service.
+
+        """
+        try:
+            with uow:
+                tr_list = uow.transaction.get(
+                    id_user,
+                    begin_date,
+                    end_date,
+                    tr_type,
+                    primary,
+                    secondary,
+                )
+
+                return tr_list
+
+        except RepositoryError as e:
+            raise ServiceError() from e
+
+        except Exception as e:
+            raise ServiceError() from e
+
+    def get_summary(
+        self,
+        uow: AbstractUnitOfWork,
+        id_user: int,
+        begin_date: date | None,
+        end_date: date | None,
+        tr_type: str,
+        to_currency: str,
+        primary: str | None = None,
+        secondary: str | None = None,
+    ) -> tuple[dict[str, dict[str, dict[str, float]]], bool]:
+        """Get transaction summary from database in a given date range.
+
+        The priority order is primary > secondary. It means that if the secondary is not
+        None but primary is None, then the value of secondary is ignored.
+
+        Parameters
+        ----------
+            - id_user (int) : id of the user
+            - begin_date (datetime.date or None) : starting date of the date range.
+                If None there is no inferior limit (all transaction up to end_date)
+            - end_date (datetime.date or None) : ending date of the date range.
+                If None there is no superior limit (all transaction from starting date).
+            - tr_type (str) : type of transaction, can be 'income' or 'expense'.
+            - to_currency (str) : final currency into which convert all the transactions.
+                It need to be a currency code (e.g. 'EUR', 'USD' ...).
+            - primary (str or None) : primary of the required transactrions summary. If
+                None all transactions (indipendently on the primary) are used.
+                By default it's set to None
+            - secondary (str or None) : secondary of the required transactrions summary.
+                If None all transactions (indipendently on the secondary) are used. If
+                this argument is not None, tr_type should not be 'income'.
+                By default it's set to None.
+
+
+        Returns
+        -------
+            It is returned a dictionry where the keys are the primary name, the item
+            is a dictionary. The keys are the secondary names (if the transaction's
+            category is a primary then this key is 'N/A') and the item is another
+            dictionary. That dict has as keys the date formatted as "YYYY-MM" and
+            as items the value (as float) of the total transactions for that month.
+            Not all dates are present in the dictionary. If, for a certain
+            category no transaction exist in that month, the key with that date is not
+            present in the output.
+            It is also returned a bool value to indicate if all the exchange_rates where
+            updated. If at least one of the used rates wasn't updated, False is returned.
+
+            An example is:
+            # {
+            #     prim_1: {
+            #         sec_1: {
+            #             "2020-02": 2847.2,
+            #             "2020-05": 3882.5,
+            #         },
+            #         sec_2: {
+            #             "2023-01": 565.5,
+            #             "2024-03": 7.7,
+            #         },
+            #     },
+            #     prim_2: {
+            #         None: {
+            #             "2021-01": 255.6,
+            #             "2022-04": 686.6,
+            #             "2024-05": 9023.5,
+            #         },
+            #     },
+            # }
+
+        Raises
+        ------
+            ServiceError: If something went wrong with the repository or the service.
+
+        """
+        try:
+            with uow:
+                summary, is_valid = uow.transaction.get_summary(
+                    id_user,
+                    begin_date,
+                    end_date,
+                    tr_type,
+                    to_currency,
+                    primary,
+                    secondary,
+                )
+
+            return summary, is_valid
+
+        except EntityNotFoundError as e:
+            raise ServiceError() from e
+
+        except RepositoryError as e:
+            raise ServiceError() from e
+
+        except Exception as e:
+            raise ServiceError() from e
+
+    def edit_transaction(
+        self,
+        uow: AbstractUnitOfWork,
+        id_tr: int,
+        new_tr: TransactionIn,
+    ) -> None:
+        """Edit a transaction.
+
+        The only parameter that can be changed are:
+        - id_category,
+        - date,
+        - name,
+        - value,
+        - description,
+        - currency.
+
+        id and id_user can't be changed.
+
+
+        Parameters
+        ----------
+            - id_tr (int) : id of the transaction to be modified.
+            - new_tr (TransactionIn) : Transaction with the new updated values.
+                Even if the new Transaction has different parameter for id_user,
+                the transaction is changed withoud modifing that parameter.
+
+        Raises
+        ------
+            ServiceError: If something went wrong with the repository or the service.
+        """
+        try:
+            with uow:
+                uow.transaction.edit(id_tr, new_tr)
+
+        except EntityNotFoundError as e:
+            raise ServiceError() from e
+
+        except RepositoryError as e:
+            raise ServiceError() from e
+
+        except Exception as e:
+            raise ServiceError() from e
+
+    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> None:
+        """Delete a transaction from the database.
+
+        Parameters
+        ----------
+            id_tr (int) : id of the transaction to be deleted.
+
+        Raises
+        ------
+            ServiceError: If something went wrong with the repository or the service.
+        """
+        try:
+            with uow:
+                uow.transaction.delete(id_tr)
+        except EntityNotFoundError as e:
+            raise ServiceError() from e
+        except RepositoryError as e:
+            raise ServiceError() from e
+        except Exception as e:
+            raise ServiceError() from e
 
 
 # def add_transaction_service(
