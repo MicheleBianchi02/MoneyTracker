@@ -1,4 +1,5 @@
 import threading
+from collections import defaultdict
 from datetime import date, timedelta
 
 from src.core.domain.exchange_rate import ExchangeRate
@@ -26,26 +27,30 @@ EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 # For currencies that will be withdrawn in the future it's not possible to know it now.
 
 
-def startup(uow: AbstractUnitOfWork) -> None:
+def startup(uow_add: AbstractUnitOfWork, uow_upd: AbstractUnitOfWork) -> None:
+    """Add and update exchange rates. Two unit of work instances are needed since
+    multithreading is used and sqlite require different connection for each thread."""
     try:
         add_exc_thread = threading.Thread(
             target=_add_exchange_rate,
-            args=(uow,),
+            args=(uow_add,),
+            daemon=True,
+        )
+
+        update_exc_thread = threading.Thread(
+            target=_update_exchange_rate,
+            args=(uow_upd,),
             daemon=True,
         )
 
         add_exc_thread.start()
+        update_exc_thread.start()
+
+        # MultiThreading is not a problem since the update function doesn't change rates
+        # above the starting date, which is date where the add function operate.
 
     except Exception as e:
         raise ServiceError() from e
-
-    # BUG: Creating another thread to update the exchange rate is a problem since
-    # in the add thread we can add not updated exchange rate
-    # Can do it if we don't edit the same paramter. See below
-
-    # Thread should not share the same sqlite connection
-
-    # put exc update in another thread
 
 
 # In the _add_exchange_rate function, if the connection isn't present (or something else
@@ -63,6 +68,11 @@ def startup(uow: AbstractUnitOfWork) -> None:
 # call _add_exchange_rate (for example when at startup the connection is not present but
 # it get activated after a while => no need to close and reopen the app)
 def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
+    """Updated exchange rates present in the database.
+
+    Rates to be updated are only the one up to the starting date (defined in
+    _add_exchange_rate).
+    """
     exc_provider = ExchangeRateProvider()
 
     with uow:
@@ -73,15 +83,40 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
         not_updated_rates = uow.exchange_rate.get_not_updated(None, end_date_range)
 
-        not_updated_dict = {}
+        not_updated_dict = defaultdict(set)
         # Assuming all exchange rates have the same from_currency
         for exc in not_updated_rates:
             exc_date = exc.rate_date.isoformat()
-            not_updated_dict.setdefault(exc_date, set())
             not_updated_dict[exc_date].add(exc.to_currency)
+
+        currencies_to_dates = defaultdict(list)
+        for date_str, currency_list in not_updated_dict.items():
+            currency_key = frozenset(currency_list)
+            currencies_to_dates[currency_key].append(date.fromisoformat(date_str))
+
+        # Fetch from API
+        for currency_key, date_list in currencies_to_dates.items():
+            currency_list = list(currency_key)
+
+            exc_rates, not_updated_rates = exc_provider.get_exchange_rate(date_list, currency_list)
+
+            for updated_exc in exc_rates:
+                uow.exchange_rate.edit(updated_exc)
 
 
 def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
+    """Add exchange rates to the database at startup.
+
+    If no rate is present in the database, a starting date is chosen, corresponding to
+    firt date of the year (if the current date is to close to the yyyy-01-01 the previous
+    year is chosen) and the rates are added starting from that date until the current
+    date. This starting date is saved, in iso format, in the app_config table of the db.
+    At next startup, the rates are added stating from the latest date present in the db
+    until the current date. If, at first startup, something went wrong with the rates
+    provider (e.g. no internet connection), rates are not added to the db. It is only
+    saved the starting date in the app_config table of the db. In that case the rates
+    will be added the next startup.
+    """
     exc_provider = ExchangeRateProvider()
     max_date = exc_provider.maximum_available_date
     currencies = exc_provider.available_currencies
