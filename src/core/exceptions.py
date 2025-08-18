@@ -58,6 +58,33 @@ class OperationNotPermittedError(ServiceError):
     pass
 
 
+class UserNotFoundError(ServiceError):
+    """Raised when the provided id_user is not present in the database."""
+
+    pass
+
+
+class CategoryNotFoundError(ServiceError):
+    """Raised when the category of a transaction that need to be added is not present
+    in the database."""
+
+    def __init__(self, message: str, details: dict = None):
+        super().__init__(message)
+        self.details = details or {}
+
+
+class TransactionNotFoundError(ServiceError):
+    """Raised when a Transaction is not found in the database. Used, for example,
+    when editing or deleting a transaction with the given id."""
+
+
+class ExchangeRateNotFoundError(ServiceError):
+    """Raised when an exchange rate is not found in the database. Used, for example,
+    when converting some transction into a different currency (e.g. in get_summary)."""
+
+    pass
+
+
 # --- Finance/API Errors ---
 
 

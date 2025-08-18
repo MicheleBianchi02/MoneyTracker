@@ -1,14 +1,21 @@
 import calendar
+import logging
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.domain.transaction import TransactionIn, TransactionOut
 from src.core.exceptions import (
+    CategoryNotFoundError,
+    DuplicateEntityError,
     EntityNotFoundError,
     ExchangeRateApiError,
+    ExchangeRateNotFoundError,
     ForeignKeyError,
+    InvalidParameterError,
     RepositoryError,
     ServiceError,
+    TransactionNotFoundError,
+    UserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
@@ -17,8 +24,7 @@ from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRate
 # TODO: In the api sturtup script, first the uow instance is created and after it is
 # passed to this class
 
-
-# TODO: Add logging
+logger = logging.getLogger(__name__)
 
 
 class TransactionServices:
@@ -27,8 +33,25 @@ class TransactionServices:
         unit_of_work: AbstractUnitOfWork,
         transaction_list: list[TransactionIn] | TransactionIn,
     ) -> None:
+        """Add transaction to the database.
+
+        Parameters
+        ----------
+            - transaction_list (list or TransactionIn): List containing all the transaction
+                that need to saved in the database. The argument can also be a single
+                TransactionIn.
+
+        Raises
+        ------
+            - UserNotFoundError: If the provided id_user is not present in the database.
+            - CategoryNotFoundError: If the provided category is not present in the database.
+            - ServiceError: If something went wrong with the repository or the service.
+        """
+
         if not isinstance(transaction_list, list):
             transaction_list = [transaction_list]
+
+        logger.info(f"Adding {len(transaction_list)} transactions to the database")
 
         try:
             date_list = [tr.tr_date for tr in transaction_list]
@@ -38,21 +61,40 @@ class TransactionServices:
 
                 uow.transaction.add(transaction_list)
 
-        except EntityNotFoundError as e:
-            # TODO: Since the app support multi language, this message could not
-            # be displayed as is. Maybe it is better to send a numeric code or something
-            # similar, and the ui will correctly understand what the problem is and
-            # display the message in the correct language. Also, since this is a
-            # backend, anything displayed from the UI should not be decided here.
-            raise ServiceError(
-                "The category for this transaction does not exist. Please create it first"
+        except ForeignKeyError as e:
+            logger.error("The specified id_user is not present in the database")
+            raise UserNotFoundError(
+                "The provided id_user is not present in the database.",
             ) from e
 
-        except ForeignKeyError as e:
-            raise ServiceError() from e
+        except EntityNotFoundError as e:
+            logger.error(f"{str(e)}")
+
+            # TODO: Edit this with detils. EntityNotFoundError should include a detail
+            # dict as CategoryNotFoundError
+            raise CategoryNotFoundError(
+                message="Category not present in the database",
+                details=None,
+            ) from e
+
+        except InvalidParameterError as e:
+            logger.error(
+                "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
+            )
+            raise ServiceError(
+                "An attempt was made to add an exchange rate with identical "
+                "from_currency and to_currency parameters, which is not allowed."
+            ) from e
+
+        except DuplicateEntityError as e:
+            logger.error("A duplicate exchange rate was added to the database")
+            raise ServiceError(
+                "An attempt was made to add an already existing exchage rate",
+            ) from e
 
         except (RepositoryError, Exception) as e:
-            raise ServiceError() from e
+            logger.exception(str(e), backtrace=True, diagnose=True)
+            raise ServiceError("An unexpected system error occurred.") from e
 
     def _add_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
         """Add exchange rates if not already present in the database."""
@@ -109,8 +151,8 @@ class TransactionServices:
                 exc_rates, not_available_exc = exc_pr.get_exchange_rate(
                     required_dates, available_currencies
                 )
-            except ExchangeRateApiError:
-                # TODO: Add logging here
+            except ExchangeRateApiError as e:
+                logger.exception(str(e), backtrace=True, diagnose=True)
 
                 exc_rates = []
                 # Enter, for instance when there is no internet connection
@@ -217,11 +259,9 @@ class TransactionServices:
 
                 return tr_list
 
-        except RepositoryError as e:
-            raise ServiceError() from e
-
-        except Exception as e:
-            raise ServiceError() from e
+        except (RepositoryError, Exception) as e:
+            logger.exception(str(e), backtrace=True, diagnose=True)
+            raise ServiceError("An unexpected system error occurred.") from e
 
     def get_summary(
         self,
@@ -294,7 +334,9 @@ class TransactionServices:
 
         Raises
         ------
-            ServiceError: If something went wrong with the repository or the service.
+            - ExchangeRateNotFoundError: When a required exchange rate is present in the
+                database
+            - ServiceError: If something went wrong with the repository or the service.
 
         """
         try:
@@ -312,13 +354,14 @@ class TransactionServices:
             return summary, is_valid
 
         except EntityNotFoundError as e:
-            raise ServiceError() from e
+            logger.error(f"{str(e)}")
+            raise ExchangeRateNotFoundError(
+                "A required exchange rate wasn't found in the database."
+            ) from e
 
-        except RepositoryError as e:
-            raise ServiceError() from e
-
-        except Exception as e:
-            raise ServiceError() from e
+        except (RepositoryError, Exception) as e:
+            logger.exception(str(e), backtrace=True, diagnose=True)
+            raise ServiceError("An unexpected system error occurred.") from e
 
     def edit_transaction(
         self,
@@ -348,20 +391,23 @@ class TransactionServices:
 
         Raises
         ------
-            ServiceError: If something went wrong with the repository or the service.
+            - TransactionNotFoundError: When the transactio with the given id is not
+                present in the database.
+            - ServiceError: If something went wrong with the repository or the service.
         """
         try:
             with uow:
                 uow.transaction.edit(id_tr, new_tr)
 
         except EntityNotFoundError as e:
-            raise ServiceError() from e
+            logger.error(f"{str(e)}")
+            raise TransactionNotFoundError(
+                """The transaction with the given id is not present in the database."""
+            ) from e
 
-        except RepositoryError as e:
-            raise ServiceError() from e
-
-        except Exception as e:
-            raise ServiceError() from e
+        except (RepositoryError, Exception) as e:
+            logger.exception(str(e), backtrace=True, diagnose=True)
+            raise ServiceError("An unexpected system error occurred.") from e
 
     def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> None:
         """Delete a transaction from the database.
@@ -372,17 +418,22 @@ class TransactionServices:
 
         Raises
         ------
-            ServiceError: If something went wrong with the repository or the service.
+            - TransactionNotFoundError: When the transactio with the given id is not
+                present in the database.
+            - ServiceError: If something went wrong with the repository or the service.
         """
         try:
             with uow:
                 uow.transaction.delete(id_tr)
         except EntityNotFoundError as e:
-            raise ServiceError() from e
-        except RepositoryError as e:
-            raise ServiceError() from e
-        except Exception as e:
-            raise ServiceError() from e
+            logger.error(f"{str(e)}")
+            raise TransactionNotFoundError(
+                """The transaction with the given id is not present in the database."""
+            ) from e
+
+        except (RepositoryError, Exception) as e:
+            logger.exception(str(e), backtrace=True, diagnose=True)
+            raise ServiceError("An unexpected system error occurred.") from e
 
 
 # def add_transaction_service(
