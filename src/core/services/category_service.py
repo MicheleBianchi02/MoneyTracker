@@ -86,7 +86,7 @@ class CategoryService:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get_primary_list(
@@ -123,7 +123,7 @@ class CategoryService:
                 return uow.category.get_primary_list(id_user, year, cat_type)
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get_secondary_list(
@@ -164,7 +164,7 @@ class CategoryService:
                 return uow.category.get_secondary_list(id_user, year, primary)
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get(
@@ -201,7 +201,7 @@ class CategoryService:
                 return uow.category.get(id_user, year, cat_type)
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def edit(self, uow: AbstractUnitOfWork, id_cat: int, new_name: str) -> None:
@@ -233,7 +233,7 @@ class CategoryService:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> None:
@@ -262,5 +262,5 @@ class CategoryService:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

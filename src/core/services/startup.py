@@ -1,10 +1,16 @@
+import logging
 import threading
 from collections import defaultdict
 from datetime import date, timedelta
 
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.exceptions import (
+    DuplicateEntityError,
+    EntityNotFoundError,
     ExchangeRateApiError,
+    ExchangeRateNotFoundError,
+    InvalidParameterError,
+    RepositoryError,
     ServiceError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
@@ -14,6 +20,8 @@ from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRate
 # from which the exchange rate started to get saved. This string should never change.
 EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 
+
+logger = logging.getLogger(__name__)
 
 # TODO: If the exchange rates for some currencies will never be found (eg for withdrawn
 # currencies like LTL or LVL) we are continuing to add not_updated exchange rate with
@@ -49,8 +57,30 @@ def startup(uow_add: AbstractUnitOfWork, uow_upd: AbstractUnitOfWork) -> None:
         # MultiThreading is not a problem since the update function doesn't change rates
         # above the starting date, which is date where the add function operate.
 
-    except Exception as e:
-        raise ServiceError() from e
+    except EntityNotFoundError as e:
+        logger.error(f"{str(e)}")
+        raise ExchangeRateNotFoundError(
+            "A required exchange rate wasn't found in the database."
+        ) from e
+
+    except InvalidParameterError as e:
+        logger.error(
+            "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
+        )
+        raise ServiceError(
+            "An attempt was made to add an exchange rate with identical "
+            "from_currency and to_currency parameters, which is not allowed."
+        ) from e
+
+    except DuplicateEntityError as e:
+        logger.error("A duplicate exchange rate was added to the database")
+        raise ServiceError(
+            "An attempt was made to add an already existing exchage rate",
+        ) from e
+
+    except (RepositoryError, Exception) as e:
+        logger.exception(str(e))
+        raise ServiceError("An unexpected system error occurred.") from e
 
 
 # In the _add_exchange_rate function, if the connection isn't present (or something else
@@ -141,8 +171,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     currencies,
                 )
 
-            except ExchangeRateApiError:
-                # TODO: Add logging
+            except ExchangeRateApiError as e:
+                logger.exception(str(e))
 
                 exc_rates = []
                 not_available_exc = {}
@@ -209,8 +239,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     currencies,
                 )
 
-            except ExchangeRateApiError:
-                # TODO: Add logging
+            except ExchangeRateApiError as e:
+                logger.exception(str(e))
 
                 exc_rates = []
                 not_available_exc = {}

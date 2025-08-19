@@ -55,7 +55,7 @@ class UserService:
             raise UsernameAlreadyPresentError("Username already in use") from e
 
         except (RepositoryError, Exception) as e:
-            # incude also error from the argon2 library
+            # This incude also error from the argon2 library
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 

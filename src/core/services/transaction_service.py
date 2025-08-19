@@ -93,7 +93,7 @@ class TransactionServices:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get_transaction(
@@ -155,7 +155,7 @@ class TransactionServices:
                 return tr_list
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get_summary(
@@ -255,7 +255,7 @@ class TransactionServices:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def edit_transaction(
@@ -310,7 +310,7 @@ class TransactionServices:
                 ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> None:
@@ -336,7 +336,7 @@ class TransactionServices:
             ) from e
 
         except (RepositoryError, Exception) as e:
-            logger.exception(str(e), backtrace=True, diagnose=True)
+            logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def _add_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
@@ -395,7 +395,7 @@ class TransactionServices:
                     required_dates, available_currencies
                 )
             except ExchangeRateApiError as e:
-                logger.exception(str(e), backtrace=True, diagnose=True)
+                logger.exception(str(e))
 
                 exc_rates = []
                 # Enter, for instance when there is no internet connection
