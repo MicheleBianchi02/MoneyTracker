@@ -58,6 +58,13 @@ class OperationNotPermittedError(ServiceError):
     pass
 
 
+class UsernameAlreadyPresentError(ServiceError):
+    """Raised when trying to add a new user with an username already present in the
+    database."""
+
+    pass
+
+
 class UserNotFoundError(ServiceError):
     """Raised when the provided id_user is not present in the database."""
 
