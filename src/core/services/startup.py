@@ -39,6 +39,7 @@ def startup(uow_add: AbstractUnitOfWork, uow_upd: AbstractUnitOfWork) -> None:
     """Add and update exchange rates. Two unit of work instances are needed since
     multithreading is used and sqlite require different connection for each thread."""
     try:
+        logger.info("Running startup service")
         add_exc_thread = threading.Thread(
             target=_add_exchange_rate,
             args=(uow_add,),
@@ -51,7 +52,10 @@ def startup(uow_add: AbstractUnitOfWork, uow_upd: AbstractUnitOfWork) -> None:
             daemon=True,
         )
 
+        logger.info("Starting add_exchange_rate thread")
         add_exc_thread.start()
+
+        logger.info("Starting update_exchange_rate thread")
         update_exc_thread.start()
 
         # MultiThreading is not a problem since the update function doesn't change rates

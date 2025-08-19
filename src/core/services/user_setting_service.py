@@ -42,6 +42,10 @@ class UserSettingService:
                 allowed_setting (if the setting is constrained) are not found in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
+
+        logging.info(
+            f"Adding user setting with name {setting_name} for user with id_user: {id_user}"
+        )
         try:
             with uow:
                 uow.user_setting.add(id_user, setting_name, value)
@@ -80,6 +84,10 @@ class UserSettingService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
+        logger.info(
+            f"Getting user settings with name {setting_name} for user with id_user: {id_user}"
+        )
+
         try:
             with uow:
                 uow.user_setting.get(id_user, setting_name)
@@ -117,6 +125,11 @@ class UserSettingService:
             User specific currencies are considered unique if (id_user, currency_code)
             are equal, indipendently on the symbol.
         """
+
+        logger.info(
+            f"Adding currency {currency_code} with symbol {currency_symbol} "
+            f"to the user with id_user {id_user}"
+        )
 
         try:
             with uow:
@@ -160,6 +173,8 @@ class UserSettingService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
+        logger.info(f"Getting currency list for user with id_user: {id_user}")
+
         try:
             with uow:
                 return uow.user_setting.get_currency_list(id_user)
@@ -182,6 +197,8 @@ class UserSettingService:
                 is not in the db.
             - RepositoryError: If something went wrong with the database
         """
+
+        logger.info(f"Deleting curerncy: {currency_code} for user with id_user: {id_user}")
 
         try:
             with uow:

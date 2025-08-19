@@ -168,6 +168,8 @@ class UserService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
+        logger.info(f"Deleting user with id_user: {id_user}")
+
         try:
             with uow:
                 uow.user.delete(id_user)

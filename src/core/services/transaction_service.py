@@ -141,6 +141,9 @@ class TransactionServices:
             ServiceError: If something went wrong with the repository or the service.
 
         """
+
+        logger.info("Getting trnasction list")
+
         try:
             with uow:
                 tr_list = uow.transaction.get(
@@ -234,6 +237,9 @@ class TransactionServices:
             - ServiceError: If something went wrong with the repository or the service.
 
         """
+
+        logger.info("Getting transaction summary")
+
         try:
             with uow:
                 summary, is_valid = uow.transaction.get_summary(
@@ -290,6 +296,9 @@ class TransactionServices:
                 present in the database.
             - ServiceError: If something went wrong with the repository or the service.
         """
+
+        logger.info("Editing transaction")
+
         try:
             with uow:
                 uow.transaction.edit(id_tr, new_tr)
@@ -326,6 +335,9 @@ class TransactionServices:
                 present in the database.
             - ServiceError: If something went wrong with the repository or the service.
         """
+
+        logger.info("Deleting transaction")
+
         try:
             with uow:
                 uow.transaction.delete(id_tr)
