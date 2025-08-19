@@ -99,6 +99,11 @@ class UserRepository(AbstractUserRepository):
             cursor.execute(sql, parameters)
 
         except sqlite3.DatabaseError as e:
+            if "UNIQUE constraint failed" in str(e):
+                raise DuplicateEntityError(
+                    f"Unique constrainnt error on username:{new_user.username}"
+                ) from e
+
             raise RepositoryError(
                 f"Error while editing User: new_user:{new_user}. ",
             ) from e

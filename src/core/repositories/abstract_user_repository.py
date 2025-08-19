@@ -30,6 +30,7 @@ class AbstractUserRepository(ABC):
 
         raise NotImplementedError
 
+    @abstractmethod
     def get(self, username: str | None) -> list[User]:
         """Get User with the given username.
 
@@ -50,6 +51,7 @@ class AbstractUserRepository(ABC):
 
         raise NotImplementedError
 
+    @abstractmethod
     def edit(self, new_user: User) -> None:
         """Edit a User present in the database.
 
@@ -67,6 +69,8 @@ class AbstractUserRepository(ABC):
 
         Raises
         ------
+            - DuplicateEntityError: If Unique constraint error occour (e.g. two user
+                user with the same username are inserted)
             - EntityNotFounError: If the user with the given id_user is not in the db.
             - RuntimeError: If something went wrong with the database
         """

@@ -1,10 +1,10 @@
 import random
 
 import pytest
+
 from src.core.domain.user import User
 from src.core.exceptions import DuplicateEntityError
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
-
 from test.util_test import UtilTest
 
 
@@ -111,6 +111,19 @@ def test_edit_user(db_env: str) -> None:
 
             user_get = uow.user.get(username=user_edit.username)
             assert user_get[0] == user_edit
+
+            try:
+                # can't add a new
+                user_get = uow.user.get(None)
+
+                user_edit = random.choice(user_get)
+                user_edit_1 = random.choice(user_get)
+
+                user_edit.username = user_edit_1.username
+                uow.user.edit(user_edit)  # the id should be the same
+
+            except DuplicateEntityError:
+                assert True
 
 
 def test_delete_user(db_env):
