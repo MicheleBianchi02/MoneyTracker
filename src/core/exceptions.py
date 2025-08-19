@@ -105,6 +105,26 @@ class ExchangeRateNotFoundError(ServiceError):
     pass
 
 
+class SettingNotFoundError(ServiceError):
+    """Raised when a setting with the given name is not found in the database."""
+
+    pass
+
+
+class DuplicateCurrencyError(ServiceError):
+    """Raised when trying to insert currencies that are already present in the
+    database for the given user."""
+
+    pass
+
+
+class CurrencyNotFoundError(ServiceError):
+    """Raise when the required currency (for that user) is not present in the
+    database (e.g. when removing a currency)."""
+
+    pass
+
+
 # --- Finance/API Errors ---
 
 
