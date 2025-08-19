@@ -96,111 +96,6 @@ class TransactionServices:
             logger.exception(str(e), backtrace=True, diagnose=True)
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def _add_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
-        """Add exchange rates if not already present in the database."""
-
-        # This function will work only if in the database we always add the same number
-        # of exchange rates (with the same number of currencies) for each date. Also, all
-        # those exchange rates must have the same from_currency parameter.
-
-        exc_pr = ExchangeRateProvider()
-
-        # When the application is first run, exchange rates from a given starting date
-        # to the given date are added. This below get this first date. From there, we are
-        # shure that the exchange rates exist.
-        exc_starting_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
-        exc_starting_date = date.fromisoformat(exc_starting_date)
-
-        date_to_check = set()  # set to remove duplicate
-        for tr_date in date_list:
-            if tr_date >= exc_starting_date:
-                continue
-
-            elif tr_date < exc_pr.minimum_available_date:
-                continue
-
-            else:
-                # dates between minimum_date (2000-01-01) and the starting date.
-                # In those cases we add exchange rates only for a given range (month)
-
-                # Can't do tr_date.replace(days=1) since the tr_date point to the original
-                # list of transactions
-                date_check = date(tr_date.year, tr_date.month, 1)
-
-                date_to_check.add(date_check)
-
-        date_to_check = list(date_to_check)
-        missing_dates = uow.exchange_rate.get_missing_rates_dates(date_to_check)
-
-        required_dates = set()  # set to remove duplicate
-        if missing_dates:
-            for exc_date in missing_dates:
-                year = exc_date.year
-                month = exc_date.month
-                last_day = calendar.monthrange(year, month)[1]
-                month_date_list = [date(year, month, day) for day in range(1, last_day + 1)]
-
-                required_dates.update(month_date_list)
-
-            required_dates = list(required_dates)
-
-            # this contain also the from_currency paramter.
-            available_currencies = exc_pr.available_currencies
-
-            try:
-                exc_rates, not_available_exc = exc_pr.get_exchange_rate(
-                    required_dates, available_currencies
-                )
-            except ExchangeRateApiError as e:
-                logger.exception(str(e), backtrace=True, diagnose=True)
-
-                exc_rates = []
-                # Enter, for instance when there is no internet connection
-                not_available_exc = {}
-                not_available_exc["from_currency"] = exc_pr.base_currency
-                available_currencies.remove(not_available_exc["from_currency"])
-
-                for exc_date in missing_dates:
-                    exc_date = exc_date.isoformat()
-                    not_available_exc[exc_date] = available_currencies
-
-            if len(not_available_exc.keys()) != 1:
-                from_currency = not_available_exc["from_currency"]
-                del not_available_exc["from_currency"]
-
-                for exc_date, curr_list in not_available_exc.items():
-                    exc_date = date.fromisoformat(exc_date)
-                    cl_rate_list = uow.exchange_rate.get_closest(exc_date)
-
-                    if cl_rate_list:
-                        for cl_rate in cl_rate_list:
-                            if cl_rate.to_currency in curr_list:
-                                exc = ExchangeRate(
-                                    from_currency=from_currency,
-                                    to_currency=cl_rate.to_currency,
-                                    rate=cl_rate.rate,
-                                    rate_date=exc_date,
-                                    is_updated=False,
-                                )
-
-                                exc_rates.append(exc)
-
-                    else:
-                        # if empty, i.e. there isn't any exchange rate in the db
-
-                        for curr in curr_list:
-                            exc = ExchangeRate(
-                                from_currency=from_currency,
-                                to_currency=curr,
-                                rate=1,
-                                rate_date=exc_date,
-                                is_updated=False,
-                            )
-
-                            exc_rates.append(exc)
-
-            uow.exchange_rate.add(exc_rates)
-
     def get_transaction(
         self,
         uow: AbstractUnitOfWork,
@@ -399,11 +294,20 @@ class TransactionServices:
             with uow:
                 uow.transaction.edit(id_tr, new_tr)
 
+                self._add_missing_exchange_rate(uow, [new_tr.tr_date])
+
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
-            raise TransactionNotFoundError(
-                """The transaction with the given id is not present in the database."""
-            ) from e
+
+            if "transaction" in str(e):
+                raise TransactionNotFoundError(
+                    """The transaction with the given id is not present in the database."""
+                ) from e
+
+            elif "category" in str(e):
+                raise CategoryNotFoundError(
+                    "The specified category is not present in the database."
+                ) from e
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e), backtrace=True, diagnose=True)
@@ -434,6 +338,111 @@ class TransactionServices:
         except (RepositoryError, Exception) as e:
             logger.exception(str(e), backtrace=True, diagnose=True)
             raise ServiceError("An unexpected system error occurred.") from e
+
+    def _add_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
+        """Add exchange rates if not already present in the database."""
+
+        # This function will work only if in the database we always add the same number
+        # of exchange rates (with the same number of currencies) for each date. Also, all
+        # those exchange rates must have the same from_currency parameter.
+
+        exc_pr = ExchangeRateProvider()
+
+        # When the application is first run, exchange rates from a given starting date
+        # to the given date are added. This below get this first date. From there, we are
+        # shure that the exchange rates exist.
+        exc_starting_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+        exc_starting_date = date.fromisoformat(exc_starting_date)
+
+        date_to_check = set()  # set to remove duplicate
+        for tr_date in date_list:
+            if tr_date >= exc_starting_date:
+                continue
+
+            elif tr_date < exc_pr.minimum_available_date:
+                continue
+
+            else:
+                # dates between minimum_date (2000-01-01) and the starting date.
+                # In those cases we add exchange rates only for a given range (month)
+
+                # Can't do tr_date.replace(days=1) since the tr_date point to the original
+                # list of transactions
+                date_check = date(tr_date.year, tr_date.month, 1)
+
+                date_to_check.add(date_check)
+
+        date_to_check = list(date_to_check)
+        missing_dates = uow.exchange_rate.get_missing_rates_dates(date_to_check)
+
+        required_dates = set()  # set to remove duplicate
+        if missing_dates:
+            for exc_date in missing_dates:
+                year = exc_date.year
+                month = exc_date.month
+                last_day = calendar.monthrange(year, month)[1]
+                month_date_list = [date(year, month, day) for day in range(1, last_day + 1)]
+
+                required_dates.update(month_date_list)
+
+            required_dates = list(required_dates)
+
+            # this contain also the from_currency paramter.
+            available_currencies = exc_pr.available_currencies
+
+            try:
+                exc_rates, not_available_exc = exc_pr.get_exchange_rate(
+                    required_dates, available_currencies
+                )
+            except ExchangeRateApiError as e:
+                logger.exception(str(e), backtrace=True, diagnose=True)
+
+                exc_rates = []
+                # Enter, for instance when there is no internet connection
+                not_available_exc = {}
+                not_available_exc["from_currency"] = exc_pr.base_currency
+                available_currencies.remove(not_available_exc["from_currency"])
+
+                for exc_date in missing_dates:
+                    exc_date = exc_date.isoformat()
+                    not_available_exc[exc_date] = available_currencies
+
+            if len(not_available_exc.keys()) != 1:
+                from_currency = not_available_exc["from_currency"]
+                del not_available_exc["from_currency"]
+
+                for exc_date, curr_list in not_available_exc.items():
+                    exc_date = date.fromisoformat(exc_date)
+                    cl_rate_list = uow.exchange_rate.get_closest(exc_date)
+
+                    if cl_rate_list:
+                        for cl_rate in cl_rate_list:
+                            if cl_rate.to_currency in curr_list:
+                                exc = ExchangeRate(
+                                    from_currency=from_currency,
+                                    to_currency=cl_rate.to_currency,
+                                    rate=cl_rate.rate,
+                                    rate_date=exc_date,
+                                    is_updated=False,
+                                )
+
+                                exc_rates.append(exc)
+
+                    else:
+                        # if empty, i.e. there isn't any exchange rate in the db
+
+                        for curr in curr_list:
+                            exc = ExchangeRate(
+                                from_currency=from_currency,
+                                to_currency=curr,
+                                rate=1,
+                                rate_date=exc_date,
+                                is_updated=False,
+                            )
+
+                            exc_rates.append(exc)
+
+            uow.exchange_rate.add(exc_rates)
 
 
 # def add_transaction_service(

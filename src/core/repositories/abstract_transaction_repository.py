@@ -135,25 +135,25 @@ class AbstractTransactionRepository(ABC):
             updated. If at least one of the used rates wasn't updated, False is returned.
 
             An example is:
-            {
-                prim_1: {
-                    sec_1: {
-                        "2020-02": 2847.2,
-                        "2020-05": 3882.5,
-                    },
-                    sec_2: {
-                        "2023-01": 565.5,
-                        "2024-03": 7.7,
-                    },
-                },
-                prim_2: {
-                    None: {
-                        "2021-01": 255.6,
-                        "2022-04": 686.6,
-                        "2024-05": 9023.5,
-                    },
-                },
-            }
+            # {
+            #     prim_1: {
+            #         sec_1: {
+            #             "2020-02": 2847.2,
+            #             "2020-05": 3882.5,
+            #         },
+            #         sec_2: {
+            #             "2023-01": 565.5,
+            #             "2024-03": 7.7,
+            #         },
+            #     },
+            #     prim_2: {
+            #         None: {
+            #             "2021-01": 255.6,
+            #             "2022-04": 686.6,
+            #             "2024-05": 9023.5,
+            #         },
+            #     },
+            # }
 
         Raises
         ------
@@ -187,6 +187,7 @@ class AbstractTransactionRepository(ABC):
         Raises
         ------
             - EntityNotFounError: If the transaction with the given id_tr is not in the db.
+                Or when the new category is not present in the db.
             - RepositoryError: If something went wrong with the database
         """
 

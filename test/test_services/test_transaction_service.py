@@ -2,6 +2,8 @@ import calendar
 import random
 from datetime import date, timedelta
 
+import pytest
+
 from src.core.domain.category import CategoryIn
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.domain.transaction import TransactionIn
@@ -9,7 +11,24 @@ from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.core.services.transaction_service import TransactionServices
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.fake_repo.fake_unit_of_work import FakeUnitOfWork
+from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+
+@pytest.fixture
+def db_env(tmp_path) -> str:
+    """Create isolated database environment for each test.
+    Add tmp_path to the argument to use the tmp directory for the datbase."""
+
+    # tmp_path is a variable internal to pytest. We don't need to define it
+    # Create temporary database file
+    db_path = tmp_path / "database.db"
+
+    db_path = str(db_path)
+
+    # db_path = ":memory:"  # use in memory database
+
+    return db_path
 
 
 def test_add_transaction():
@@ -147,3 +166,81 @@ def test_add_transaction():
 
                 if exc.to_currency == exc.from_currency:
                     raise AssertionError("Same currency for from_currency and to_currency")
+
+
+def test_edit_transaction(db_env):
+    starting_date = "2025-01-01"
+    tr_service = TransactionServices()
+
+    uow = UnitOfWork(db_env)
+
+    primary = UtilTest.generate_random_string()
+    secondary = None
+
+    first_date = date(2022, 2, 1)
+    edit_date = first_date.replace(year=first_date.year - 1)
+
+    with uow:
+        UtilTest.init_database(uow)
+        id_user = uow.user.add(UtilTest.generate_random_string(), UtilTest.generate_random_string())
+        uow.app_config.add(EXC_DATE_CONFIG_NAME, starting_date)
+
+        cat_list = []
+        cat_list.append(
+            CategoryIn(
+                id_user=id_user,
+                year=first_date.year,
+                category_type="expense",
+                primary=primary,
+                secondary=secondary,
+            )
+        )
+        cat_list.append(
+            CategoryIn(
+                id_user=id_user,
+                year=edit_date.year,
+                category_type="expense",
+                primary=primary,
+                secondary=secondary,
+            )
+        )
+
+        uow.category.add(cat_list)
+
+    tr_edit = TransactionIn(
+        id_user=id_user,
+        primary=primary,
+        secondary=None,
+        tr_type="expense",
+        tr_date=first_date,
+        name=UtilTest.generate_random_string(),
+        value=random.random() * 10000,
+        currency="USD",
+        description=UtilTest.generate_random_string(),
+    )
+
+    tr_service.add_transaction(uow, tr_edit)
+
+    tr_get = tr_service.get_transaction(
+        uow,
+        id_user,
+        begin_date=first_date,
+        end_date=first_date,
+        tr_type="expense",
+        primary=primary,
+        secondary=secondary,
+    )
+
+    tr_get = tr_get[0]
+
+    tr_edit.tr_date = edit_date
+    tr_edit.currency = "EUR"
+
+    tr_service.edit_transaction(uow, tr_get.id, tr_edit)
+
+    with uow:
+        exc_get = uow.exchange_rate.get(first_date)
+        assert exc_get != []
+
+        exc_get = uow.exchange_rate.get(edit_date)
+        assert exc_get != []
