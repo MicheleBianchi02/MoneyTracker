@@ -252,7 +252,7 @@ class CategoryService:
 
         Raises
         ------
-            - CategoiryNotFoundError: If the category with the given id_cat is not in the db.
+            - CategoryNotFoundError: If the category with the given id_cat is not in the db.
             - OperationNotPermitted: If trying to delete a primary that has some
                 secondaries as child.
             - ServiceError: If something went wrong with the repository or the service.
@@ -264,7 +264,7 @@ class CategoryService:
             still has secondaries as child.
         """
 
-        logger.info("Editing category")
+        logger.info("Deleting category")
 
         try:
             with uow:
@@ -274,6 +274,9 @@ class CategoryService:
                     uow.category.delete(id_cat)
 
                 else:
+                    logger.info(
+                        "Cannot delete category whith transactions using that category",
+                    )
                     return tr_list
 
         except InvalidParameterError as e:

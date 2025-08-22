@@ -6,10 +6,12 @@ from src.core.exceptions import (
     CategoryNotFoundException,
     DuplicateCategoryException,
     InvalidCategoryError,
+    OperationNotPermittedError,
     ServiceCategoryNotFoundError,
     ServiceDuplicateCategoryError,
     ServiceError,
     ServiceUserNotFoundError,
+    TransactionUseCategoryException,
     UserNotFoundException,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
@@ -108,10 +110,19 @@ def edit_category(id_cat: int, new_name: str, uow: AbstractUnitOfWork = Depends(
 def delete_category(id_cat: int, uow: AbstractUnitOfWork = Depends(get_uow)):
     """
     Deletes a category.
+    If some transaction uses that category, it will not be deleted.
+    If the category is a primary and has some secondary child, it will not be deleted.
     """
     try:
-        category_service.delete(uow, id_cat)
-        return
+        tr_list = category_service.delete(uow, id_cat)
+
+        if tr_list is not None:
+            raise TransactionUseCategoryException()
+
+    except OperationNotPermittedError:
+        raise BadRequestException(
+            message="Cannot delete a primary with existing secondaries",
+        )
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
     except ServiceError as e:

@@ -146,6 +146,11 @@ class BadRequestException(AppException):
         super().__init__(400, message, "BAD_REQUEST")
 
 
+class TransactionUseCategoryException(AppException):
+    def __init__(self):
+        super().__init__(400, "Transaction uses that category", "CATEGORY_IN_USE")
+
+
 class UnauthorizedException(AppException):
     def __init__(self, message: str = "Unauthorized"):
         super().__init__(401, message, "UNAUTHORIZED")
