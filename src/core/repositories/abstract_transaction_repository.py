@@ -165,6 +165,25 @@ class AbstractTransactionRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_by_id_cat(self, id_cat: int) -> list[TransactionOut]:
+        """Get transaction list with the provided category id.
+
+        Parameters
+        ----------
+            - id_cat (int) : id of the category
+
+        Returns
+        -------
+            List of TransactionOut instances all of which share the same category
+
+        Raises
+        ------
+            RepostioryError: If something went wrong with the database.
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
     def edit(self, id_tr: int, new_tr: TransactionIn) -> None:
         """Edit a transaction.
 

@@ -811,6 +811,76 @@ class TransactionRepository(AbstractTransactionRepository):
 
         return summary_data, is_valid
 
+    def get_by_id_cat(self, id_cat: int) -> list[TransactionOut]:
+        # Used by the category service when trying to delete a category.
+        cursor = self._connection.cursor()
+
+        # See the get method to understand the CASE statement
+        sql = """
+            SELECT
+                tr.id_tr,
+                tr.id_user,
+                tr.tr_date,
+                tr.name,
+                tr.tr_value,
+                tr.description,
+                tr.currency,
+                c.category_type,
+                
+                CASE  
+                    WHEN p.name IS NULL THEN 
+                        c.name
+                    ELSE 
+                        p.name
+                    END AS primary_name,
+                CASE  
+                    WHEN p.name IS NULL THEN 
+                        NULL
+                    ELSE 
+                        c.name
+                    END AS secondary_name
+
+            FROM 
+                transactions tr
+            INNER JOIN
+                categories c ON tr.id_category = c.id_category
+            LEFT JOIN
+                categories p ON c.parent_category_id = p.id_category
+            WHERE 
+                tr.id_category = ?
+        """
+
+        parameters = (id_cat,)
+
+        try:
+            cursor.execute(sql, parameters)
+            tr_ret_list = cursor.fetchall()
+
+            tr_list = []
+
+            for tr_ret in tr_ret_list:
+                tr = TransactionOut(
+                    id=tr_ret[0],
+                    id_user=tr_ret[1],
+                    primary=tr_ret[8],
+                    secondary=tr_ret[9],
+                    tr_type=tr_ret[7],
+                    tr_date=date.fromisoformat(tr_ret[2]),
+                    name=tr_ret[3],
+                    value=tr_ret[4],
+                    description=tr_ret[5],
+                    currency=tr_ret[6],
+                )
+
+                tr_list.append(tr)
+
+            return tr_list
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                f"Error while getting transactions with category id: {id_cat}"
+            ) from e
+
     def edit(self, id_tr: int, new_tr: TransactionIn) -> None:
         cursor = self._connection.cursor()
 

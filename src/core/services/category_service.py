@@ -1,6 +1,7 @@
 import logging
 
 from src.core.domain.category import CategoryIn, CategoryOut
+from src.core.domain.transaction import TransactionOut
 from src.core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
@@ -237,12 +238,17 @@ class CategoryService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> None:
+    def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> list[TransactionOut] | None:
         """Delete the given category.
 
         Parameters
         ----------
             id_cat (int) : id of the category to be deleted
+
+        Returns
+        -------
+            If there are transactions with that id_cat a list of TransactionOut instances
+            is returned. None otherwise (i.e. the category is successfully deleted).
 
         Raises
         ------
@@ -250,14 +256,25 @@ class CategoryService:
             - OperationNotPermitted: If trying to delete a primary that has some
                 secondaries as child.
             - ServiceError: If something went wrong with the repository or the service.
+
+        Notes
+        -----
+            Deleting a category is not allowed if there transaction that uses that
+            category. Also, it's not allowed if category to be deleted is a primary and
+            still has secondaries as child.
         """
 
         logger.info("Editing category")
 
-        # TODO: Change the transactions category
         try:
             with uow:
-                uow.category.delete(id_cat)
+                tr_list = uow.transaction.get_by_id_cat(id_cat)
+
+                if tr_list == []:
+                    uow.category.delete(id_cat)
+
+                else:
+                    return tr_list
 
         except InvalidParameterError as e:
             logger.exception(str(e))

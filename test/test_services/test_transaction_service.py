@@ -8,7 +8,7 @@ from src.core.domain.category import CategoryIn
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.domain.transaction import TransactionIn
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
-from src.core.services.transaction_service import TransactionServices
+from src.core.services.transaction_service import TransactionService
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.fake_repo.fake_unit_of_work import FakeUnitOfWork
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
@@ -36,7 +36,7 @@ def test_add_transaction():
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
 
-    tr_service = TransactionServices()
+    tr_service = TransactionService()
     uow = FakeUnitOfWork()
 
     starting_date = "2025-01-01"
@@ -170,7 +170,7 @@ def test_add_transaction():
 
 def test_edit_transaction(db_env):
     starting_date = "2025-01-01"
-    tr_service = TransactionServices()
+    tr_service = TransactionService()
 
     uow = UnitOfWork(db_env)
 
