@@ -65,13 +65,13 @@ class UsernameAlreadyPresentError(ServiceError):
     pass
 
 
-class UserNotFoundError(ServiceError):
+class ServiceUserNotFoundError(ServiceError):
     """Raised when the provided id_user is not present in the database."""
 
     pass
 
 
-class CategoryNotFoundError(ServiceError):
+class ServiceCategoryNotFoundError(ServiceError):
     """Raised when the category of a transaction that need to be added is not present
     in the database."""
 
@@ -87,31 +87,31 @@ class InvalidCategoryError(ServiceError):
     pass
 
 
-class DuplicateCategoryError(ServiceError):
+class ServiceDuplicateCategoryError(ServiceError):
     """Raised when trying to add an already existing category to the database."""
 
     pass
 
 
-class TransactionNotFoundError(ServiceError):
+class ServiceTransactionNotFoundError(ServiceError):
     """Raised when a Transaction is not found in the database. Used, for example,
     when editing or deleting a transaction with the given id."""
 
 
-class ExchangeRateNotFoundError(ServiceError):
+class ServiceExchangeRateNotFoundError(ServiceError):
     """Raised when an exchange rate is not found in the database. Used, for example,
     when converting some transction into a different currency (e.g. in get_summary)."""
 
     pass
 
 
-class SettingNotFoundError(ServiceError):
+class ServiceSettingNotFoundError(ServiceError):
     """Raised when a setting with the given name is not found in the database."""
 
     pass
 
 
-class DuplicateCurrencyError(ServiceError):
+class ServiceDuplicateCurrencyError(ServiceError):
     """Raised when trying to insert currencies that are already present in the
     database for the given user."""
 
@@ -123,6 +123,95 @@ class CurrencyNotFoundError(ServiceError):
     database (e.g. when removing a currency)."""
 
     pass
+
+
+# --- API Errors ---
+
+
+class AppException(Exception):
+    """Base class for all the API errors"""
+
+    def __init__(self, status_code: int, message: str, code: str):
+        self.status_code = status_code
+        self.message = message
+        self.code = code
+        super().__init__(message)
+
+
+# --- 4xx Errors ---
+
+
+class BadRequestException(AppException):
+    def __init__(self, message: str = "Bad Request"):
+        super().__init__(400, message, "BAD_REQUEST")
+
+
+class UnauthorizedException(AppException):
+    def __init__(self, message: str = "Unauthorized"):
+        super().__init__(401, message, "UNAUTHORIZED")
+
+
+class ForbiddenException(AppException):
+    def __init__(self, message: str = "Forbidden"):
+        super().__init__(403, message, "FORBIDDEN")
+
+
+class NotFoundException(AppException):
+    def __init__(self, message: str, code: str):
+        super().__init__(404, message, code)
+
+
+class UserNotFoundException(NotFoundException):
+    def __init__(self):
+        super().__init__("User not found", "USER_NOT_FOUND")
+
+
+class CategoryNotFoundException(NotFoundException):
+    def __init__(self):
+        super().__init__("Category not found", "CATEGORY_NOT_FOUND")
+
+
+class TransactionNotFoundException(NotFoundException):
+    def __init__(self):
+        super().__init__("Transaction not found", "TRANSACTION_NOT_FOUND")
+
+
+class ExchangeRateNotFoundException(NotFoundException):
+    def __init__(self):
+        super().__init__("Exchange rate not found", "EXCHANGE_RATE_NOT_FOUND")
+
+
+class SettingNotFoundException(NotFoundException):
+    def __init__(self):
+        super().__init__("Setting not found", "SETTING_NOT_FOUND")
+
+
+class ConflictException(AppException):
+    def __init__(self, message: str, code: str):
+        super().__init__(409, message, code)
+
+
+class DuplicateUserException(ConflictException):
+    def __init__(self):
+        super().__init__("User with this username already exists", "DUPLICATE_USER")
+
+
+class DuplicateCategoryException(ConflictException):
+    def __init__(self):
+        super().__init__("Category with this name already exists", "DUPLICATE_CATEGORY")
+
+
+class DuplicateCurrencyException(ConflictException):
+    def __init__(self):
+        super().__init__("Currency with this code already exists", "DUPLICATE_CURRENCY")
+
+
+# --- 5xx Errors ---
+
+
+class InternalServerErrorException(AppException):
+    def __init__(self, message: str = "Internal Server Error"):
+        super().__init__(500, message, "INTERNAL_SERVER_ERROR")
 
 
 # --- Finance/API Errors ---

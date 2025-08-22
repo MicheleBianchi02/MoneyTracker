@@ -8,8 +8,8 @@ from src.core.exceptions import (
     EntityNotFoundError,
     RepositoryError,
     ServiceError,
+    ServiceUserNotFoundError,
     UsernameAlreadyPresentError,
-    UserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 
@@ -60,6 +60,22 @@ class UserService:
             raise ServiceError("An unexpected system error occurred.") from e
 
     def authenticate(self, uow: AbstractUnitOfWork, username: str, password: str) -> bool:
+        """Authenticate a user.
+
+        Parameters
+        ----------
+            - username (str) : username of the user
+            - password (str) : non hashed password
+
+        Returns
+        -------
+            A bool value whether the user has been authenticated or not
+
+        Raises
+        ------
+            - ServiceError: If something went wrong with the repository or the service.
+        """
+
         logger.info("Authenticating user")
         try:
             with uow:
@@ -124,7 +140,7 @@ class UserService:
         Raises
         ------
             - UsernameAlreadyPresentError: If the new username is already in use.
-            - UserNotFoundError: If the user with the given id_user is not in the db.
+            - ServiceUserNotFoundError: If the user with the given id_user is not in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
@@ -147,7 +163,7 @@ class UserService:
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
-            raise UserNotFoundError(
+            raise ServiceUserNotFoundError(
                 "The user with the given id is not present in the database",
             ) from e
 
@@ -164,7 +180,7 @@ class UserService:
 
         Raises
         ------
-            - UserNotFoundError: If the user with the given id_user is not in the db.
+            - ServiceUserNotFoundError: If the user with the given id_user is not in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
@@ -176,7 +192,7 @@ class UserService:
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
-            raise UserNotFoundError(
+            raise ServiceUserNotFoundError(
                 "The user with the given id is not present in the database",
             ) from e
 

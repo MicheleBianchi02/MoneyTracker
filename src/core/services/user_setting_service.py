@@ -3,14 +3,14 @@ import logging
 from src.core.domain.setting import Setting
 from src.core.exceptions import (
     CurrencyNotFoundError,
-    DuplicateCurrencyError,
     DuplicateEntityError,
     EntityNotFoundError,
     ForeignKeyError,
     RepositoryError,
+    ServiceDuplicateCurrencyError,
     ServiceError,
-    SettingNotFoundError,
-    UserNotFoundError,
+    ServiceSettingNotFoundError,
+    ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 
@@ -38,7 +38,7 @@ class UserSettingService:
 
         Raises
         ------
-            - SettingNotFoundError: If the setting, with the given setting_name, or the
+            - ServiceSettingNotFoundError: If the setting, with the given setting_name, or the
                 allowed_setting (if the setting is constrained) are not found in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
@@ -52,7 +52,7 @@ class UserSettingService:
 
         except EntityNotFoundError as e:
             logger.error(str(e))
-            raise SettingNotFoundError("Setting not found") from e
+            raise ServiceSettingNotFoundError("Setting not found") from e
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -115,8 +115,8 @@ class UserSettingService:
 
         Raises
         ------
-            - UserNotFoundError: If the provided id_user is not present in the database.
-            - DuplicateCurrencyError: If trying to add an already present (for that
+            - ServiceUserNotFoundError: If the provided id_user is not present in the database.
+            - ServiceDuplicateCurrencyError: If trying to add an already present (for that
                 user) currency code.
             - ServiceError: If something went wrong with the repository or the service.
 
@@ -137,7 +137,7 @@ class UserSettingService:
 
         except ForeignKeyError as e:
             logger.error("The specified id_user is not present in the database")
-            raise UserNotFoundError(
+            raise ServiceUserNotFoundError(
                 "The provided id_user is not present in the database.",
             ) from e
 
@@ -145,7 +145,7 @@ class UserSettingService:
             logger.error(
                 f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
             )
-            raise DuplicateCurrencyError(
+            raise ServiceDuplicateCurrencyError(
                 f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
             ) from e
 

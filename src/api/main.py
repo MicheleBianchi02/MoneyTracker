@@ -2,7 +2,12 @@ import logging
 import logging.config
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from src.api.endpoints import categories, settings, transactions, users
+from src.core.exceptions import AppException
+from src.core.services.startup import startup
 
 # Create a logs directory if it doesn't exist
 if not os.path.exists("logs"):
@@ -24,7 +29,8 @@ LOGGING_CONFIG = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
-            "level": "INFO",
+            # "level": "INFO",
+            "level": "WARNING",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -48,6 +54,18 @@ logging.config.dictConfig(LOGGING_CONFIG)
 # Define the FastAPI app
 app = FastAPI()
 
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "message": exc.message,
+            "code": exc.code,
+        },
+    )
+
+
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
@@ -55,7 +73,12 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_event():
     """Log app startup"""
+
     logger.info("Backend API starting up.")
+    startup()
 
 
-# TODO: In the endpoints folder, create the routers and call them here
+app.include_router(transactions.router)
+app.include_router(categories.router)
+app.include_router(users.router)
+app.include_router(settings.router)

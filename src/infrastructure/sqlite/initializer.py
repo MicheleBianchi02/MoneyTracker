@@ -4,12 +4,7 @@ from src import default_settings
 
 
 def initialize_database(connection: sqlite3.Connection) -> None:
-    cursor = connection.cursor()
-
     try:
-        # This should be run at every new connection
-        cursor.execute("PRAGMA foreign_keys = ON")
-
         _init_user(connection)
 
         _init_categories(connection)

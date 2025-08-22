@@ -162,6 +162,8 @@ class AbstractTransactionRepository(ABC):
 
         """
 
+        raise NotImplementedError
+
     @abstractmethod
     def edit(self, id_tr: int, new_tr: TransactionIn) -> None:
         """Edit a transaction.

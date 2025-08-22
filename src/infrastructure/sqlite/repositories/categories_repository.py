@@ -413,7 +413,23 @@ class CategoryRepository(AbstractCategoryRepository):
         parameters = (id_cat,)  # need to be a tuple
         self._validate_edit_delete(id_cat)
 
+        sql_sec = """
+            SELECT 1
+            FROM 
+                categories
+            WHERE
+                parent_category_id = ?
+        """
+
         try:
+            cursor.execute(sql_sec, parameters)
+            sec = cursor.fetchone()
+
+            if sec is not None:
+                raise InvalidParameterError(
+                    "Cannot delete a primary with existing secondaries",
+                )
+
             cursor.execute(sql, parameters)
         except sqlite3.DatabaseError as e:
             raise RepositoryError(

@@ -22,5 +22,9 @@ dependencies = [
 testpaths = ["."]
 pythonpath = ["."]
 
+
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.params.Query"]

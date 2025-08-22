@@ -2,16 +2,17 @@ import logging
 
 from src.core.domain.category import CategoryIn, CategoryOut
 from src.core.exceptions import (
-    CategoryNotFoundError,
-    DuplicateCategoryError,
     DuplicateEntityError,
     EntityNotFoundError,
     ForeignKeyError,
     InvalidCategoryError,
     InvalidParameterError,
+    OperationNotPermittedError,
     RepositoryError,
+    ServiceCategoryNotFoundError,
+    ServiceDuplicateCategoryError,
     ServiceError,
-    UserNotFoundError,
+    ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 
@@ -35,8 +36,8 @@ class CategoryService:
             - InvalidCategoryError: If cat_type == "income" and a secondary is provided.
                 Incomes can't have secondaries. Also, when the category type isn't
                 'income' or 'expense'.
-            - UserNotFoundError: If the provided id_user is not present in the database.
-            - DuplicateCategoryError: If Unique constraint error occour (e.g. two identical
+            - ServiceUserNotFoundError: If the provided id_user is not present in the database.
+            - ServiceDuplicateCategoryError: If Unique constraint error occour (e.g. two identical
                 category are inserted)
             - ServiceError: If something went wrong with the repository or the service.
 
@@ -56,14 +57,14 @@ class CategoryService:
             - Secondary with the same name of the primary.
         """
 
-        logger.info(f"Adding {len(cat_list)} categories into the database.")
+        logger.info(f"Adding {len(list(cat_list))} categories into the database.")
         try:
             with uow:
                 uow.category.add(cat_list)
 
         except ForeignKeyError as e:
             logger.error("The specified id_user is not present in the database")
-            raise UserNotFoundError(
+            raise ServiceUserNotFoundError(
                 "The provided id_user is not present in the database.",
             ) from e
 
@@ -81,7 +82,7 @@ class CategoryService:
             logger.error(
                 "An attemp was made to add an already existing category to the database",
             )
-            raise DuplicateCategoryError(
+            raise ServiceDuplicateCategoryError(
                 "An attemp was made to add an already existing category to the database",
             ) from e
 
@@ -228,7 +229,7 @@ class CategoryService:
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
-            raise CategoryNotFoundError(
+            raise ServiceCategoryNotFoundError(
                 """The category with the given id is not present in the database."""
             ) from e
 
@@ -246,18 +247,27 @@ class CategoryService:
         Raises
         ------
             - CategoiryNotFoundError: If the category with the given id_cat is not in the db.
+            - OperationNotPermitted: If trying to delete a primary that has some
+                secondaries as child.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
         logger.info("Editing category")
 
+        # TODO: Change the transactions category
         try:
             with uow:
                 uow.category.delete(id_cat)
 
+        except InvalidParameterError as e:
+            logger.exception(str(e))
+            raise OperationNotPermittedError(
+                "Cannot delete a primary with existing secondaries",
+            ) from e
+
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
-            raise CategoryNotFoundError(
+            raise ServiceCategoryNotFoundError(
                 """The category with the given id is not present in the database."""
             ) from e
 
