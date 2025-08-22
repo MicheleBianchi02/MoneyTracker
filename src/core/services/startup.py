@@ -123,9 +123,12 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
                 for currency_key, date_list in currencies_to_dates.items():
                     currency_list = list(currency_key)
 
-                    exc_rates, not_updated_rates = exc_provider.get_exchange_rate(
-                        date_list, currency_list
-                    )
+                    try:
+                        exc_rates, not_updated_rates = exc_provider.get_exchange_rate(
+                            date_list, currency_list
+                        )
+                    except ExchangeRateApiError:
+                        exc_rates = []
 
                     for updated_exc in exc_rates:
                         uow.exchange_rate.edit(updated_exc)
