@@ -66,7 +66,7 @@ def test_delete_cat_with_tr(db_env):
 
     with UnitOfWork(db_path) as uow:
         UtilTest.init_database(uow)
-        _, cat_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=5, n_tr=500)
+        _, cat_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
 
     n = 20
     for _ in range(n):

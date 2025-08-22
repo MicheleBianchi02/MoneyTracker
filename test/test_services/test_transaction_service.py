@@ -10,7 +10,6 @@ from src.core.domain.transaction import TransactionIn
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.core.services.transaction_service import TransactionService
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.fake_repo.fake_unit_of_work import FakeUnitOfWork
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -31,13 +30,13 @@ def db_env(tmp_path) -> str:
     return db_path
 
 
-def test_add_transaction():
+def test_add_transaction(db_env):
     """In this test we just need to see if the exchange rates are added correctly.
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
 
     tr_service = TransactionService()
-    uow = FakeUnitOfWork()
+    uow = UnitOfWork(db_env)
 
     starting_date = "2025-01-01"
     maximum_date = "2025-05-31"
@@ -65,6 +64,7 @@ def test_add_transaction():
     tr_date_list.append(date(2024, 12, 31))
 
     with uow:
+        UtilTest.init_database(uow)
         id_user = uow.user.add(UtilTest.generate_random_string(), UtilTest.generate_random_string())
 
         uow.app_config.add(EXC_DATE_CONFIG_NAME, starting_date)

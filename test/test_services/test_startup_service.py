@@ -1,6 +1,8 @@
 from datetime import date, timedelta
 from random import randint, random
 
+import pytest
+
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.exceptions import ExchangeRateApiError
 from src.core.services.startup import (
@@ -9,15 +11,33 @@ from src.core.services.startup import (
     _update_exchange_rate,
 )
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.fake_repo.fake_unit_of_work import FakeUnitOfWork
+from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
+
 # TODO: Test what happen when there is no internet connection
+@pytest.fixture
+def db_env(tmp_path) -> str:
+    """Create isolated database environment for each test.
+    Add tmp_path to the argument to use the tmp directory for the datbase."""
+
+    # tmp_path is a variable internal to pytest. We don't need to define it
+    # Create temporary database file
+    db_path = tmp_path / "database.db"
+
+    db_path = str(db_path)
+
+    # db_path = ":memory:"  # use in memory database
+
+    return db_path
 
 
-def test_startup_add_from_empty():
+def test_startup_add_from_empty(db_env):
     """Test add exchange rate with empty database"""
-    uow = FakeUnitOfWork()
+    uow = UnitOfWork(db_env)
+
+    with uow:
+        UtilTest.init_database(uow)
 
     _add_exchange_rate(uow)
 
@@ -49,11 +69,12 @@ def test_startup_add_from_empty():
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
 
-def test_startup_add_from_filled():
+def test_startup_add_from_filled(db_env):
     """Test adding exchange rate when already present in the database but not up to date."""
-    uow = FakeUnitOfWork()
+    uow = UnitOfWork(db_env)
 
     with uow:
+        UtilTest.init_database(uow)
         max_date = date(2025, 8, 1)
 
         st_date = f"{max_date.year}-01-01"
@@ -85,12 +106,15 @@ def test_startup_add_from_filled():
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
 
-def test_update():
-    uow = FakeUnitOfWork()
+def test_update(db_env):
+    uow = UnitOfWork(db_env)
     exc_pr = ExchangeRateProvider()
 
     from_currency = exc_pr.base_currency
     available_currencies = exc_pr.available_currencies
+
+    with uow:
+        UtilTest.init_database(uow)
 
     _add_exchange_rate(uow)
 
@@ -129,7 +153,8 @@ def test_update():
 
     _update_exchange_rate(uow)
 
-    exc_get = uow.exchange_rate.get_not_updated(None, None)
+    with uow:
+        exc_get = uow.exchange_rate.get_not_updated(None, None)
 
     curr_dict = {}
     for exc in exc_get:
