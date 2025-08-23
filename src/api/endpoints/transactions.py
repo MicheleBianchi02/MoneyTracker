@@ -101,7 +101,7 @@ def get_summary(
 @router.put("/{id_tr}", status_code=204)
 def edit_transaction(
     id_tr: int,
-    new_tr: list[TransactionIn] | TransactionIn,
+    new_tr: TransactionIn,
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """

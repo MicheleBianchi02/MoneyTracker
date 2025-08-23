@@ -138,7 +138,7 @@ class TransactionService:
 
         """
 
-        logger.info("Getting trnasction list")
+        logger.info("Getting transaction list")
 
         try:
             with uow:
@@ -250,7 +250,7 @@ class TransactionService:
 
         except EntityNotFoundError as e:
             # If an exchange rate is not found, try to add it
-            logger.error(f"{str(e)}")
+            logger.error(f"{str(e)}. Adding missing exchange rates.")
 
             try:
                 with uow:
@@ -263,11 +263,10 @@ class TransactionService:
                         secondary,
                     )
 
-                date_list = [tr.tr_date for tr in tr_list]
+                    date_list = [tr.tr_date for tr in tr_list]
 
-                self._add_missing_exchange_rate(uow, date_list)
+                    self._add_missing_exchange_rate(uow, date_list)
 
-                with uow:
                     summary, is_valid = uow.transaction.get_summary(
                         id_user,
                         begin_date,
