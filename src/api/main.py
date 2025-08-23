@@ -4,14 +4,32 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from platformdirs import PlatformDirs
 
 from src.api.endpoints import categories, settings, transactions, users
 from src.core.exceptions import AppException
 from src.core.services.startup import startup
 
-# Create a logs directory if it doesn't exist
-if not os.path.exists("logs"):
-    os.makedirs("logs")
+APPNAME = "MoneyTracker"
+AUTHOR = "Nobody"
+
+dirs = PlatformDirs(APPNAME, AUTHOR)
+
+data_dir = dirs.user_data_dir
+config_dir = dirs.user_config_dir
+log_dir = dirs.user_log_dir
+
+
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+LOG_FILE = os.path.join(log_dir, "app.log")
+# Used when generating UnitOfWork instances
+DATA_FILE = os.path.join(data_dir, "database.db")
+
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -29,12 +47,13 @@ LOGGING_CONFIG = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
-            "level": "INFO",
+            # "level": "INFO",
             # "level": "WARNING",
+            "level": "CRITICAL",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "logs/app.log",
+            "filename": f"{LOG_FILE}",
             "maxBytes": 1024 * 1024 * 5,  # 5 MB
             "backupCount": 5,
             "formatter": "detailed",
@@ -66,7 +85,6 @@ async def app_exception_handler(request: Request, exc: AppException):
     )
 
 
-# Get a logger for this module
 logger = logging.getLogger(__name__)
 
 
