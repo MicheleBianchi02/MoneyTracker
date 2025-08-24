@@ -13,6 +13,7 @@ from src.core.exceptions import (
     ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 
 logger = logging.getLogger(__name__)
 
@@ -153,12 +154,15 @@ class UserSettingService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def get_currency_list(self, uow: AbstractUnitOfWork, id_user: int) -> list[tuple[str, str]]:
+    def get_currency_list(
+        self, uow: AbstractUnitOfWork, id_user: int | None
+    ) -> list[tuple[str, str]]:
         """Get user specific currency from the database.
 
         Parameters
         ----------
-            - id_user (int) : id of the user
+            - id_user (int or None) : id of the user. If None, the available currencies
+                is returned.
 
         Returns
         -------
@@ -176,8 +180,11 @@ class UserSettingService:
         logger.info(f"Getting currency list for user with id_user: {id_user}")
 
         try:
-            with uow:
-                return uow.user_setting.get_currency_list(id_user)
+            if id_user is not None:
+                with uow:
+                    return uow.user_setting.get_currency_list(id_user)
+
+            return ExchangeRateProvider().available_currencies_detailed
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))

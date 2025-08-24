@@ -2,6 +2,7 @@ import datetime
 from datetime import date
 
 import requests
+
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.exceptions import ExchangeRateApiError
 
@@ -10,38 +11,38 @@ class ExchangeRateProvider:
     _base_currency = "EUR"
     _minimum_date = date(2000, 1, 1)
     _available_currencies = [
-        "AUD",
-        "BGN",
-        "BRL",
-        "CAD",
-        "CHF",
-        "CNY",
-        "CZK",
-        "DKK",
-        "EUR",
-        "GBP",
-        "HKD",
-        "HRK",
-        "HUF",
-        "IDR",
-        "ILS",
-        "INR",
-        "JPY",
-        "KRW",
-        "LTL",
-        "LVL",
-        "MXN",
-        "MYR",
-        "NOK",
-        "NZD",
-        "PHP",
-        "PLN",
-        "RON",
-        "SEK",
-        "SGD",
-        "TRY",
-        "USD",
-        "ZAR",
+        ("AUD", None),
+        ("BGN", None),
+        ("BRL", None),
+        ("CAD", None),
+        ("CHF", None),
+        ("CNY", None),
+        ("CZK", None),
+        ("DKK", None),
+        ("EUR", "€"),
+        ("GBP", "£"),
+        ("HKD", None),
+        ("HRK", None),
+        ("HUF", None),
+        ("IDR", None),
+        ("ILS", None),
+        ("INR", None),
+        ("JPY", "¥"),
+        ("KRW", None),
+        ("LTL", None),
+        ("LVL", None),
+        ("MXN", None),
+        ("MYR", None),
+        ("NOK", None),
+        ("NZD", None),
+        ("PHP", None),
+        ("PLN", None),
+        ("RON", None),
+        ("SEK", None),
+        ("SGD", None),
+        ("TRY", None),
+        ("USD", "$"),
+        ("ZAR", None),
     ]
 
     @property
@@ -50,9 +51,14 @@ class ExchangeRateProvider:
         return self._base_currency
 
     @property
-    def available_currencies(self) -> list[str]:
-        """Available currencies. Parameter of the API"""
+    def available_currencies_detailed(self) -> list[tuple[str, str | None]]:
+        """Available currencies code + symbol. Parameter of the API"""
         return self._available_currencies.copy()
+
+    @property
+    def available_currencies(self) -> list[str]:
+        """Available currencies code. Parameter of the API"""
+        return [curr[0] for curr in self._available_currencies]
 
     @property
     def minimum_available_date(self) -> date:

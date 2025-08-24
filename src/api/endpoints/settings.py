@@ -77,7 +77,7 @@ def add_currency(
 
 
 @router.get("/currencies/", response_model=list[tuple[str, str | None]])
-def get_currencies(id_user: int, uow: AbstractUnitOfWork = Depends(get_uow)):
+def get_currencies(id_user: int | None, uow: AbstractUnitOfWork = Depends(get_uow)):
     """
     Retrieves all currencies for a user.
     """
