@@ -1,4 +1,5 @@
 import logging
+import logging.config
 import threading
 from collections import defaultdict
 from datetime import date, timedelta
@@ -12,6 +13,7 @@ from src.core.exceptions import (
     ServiceError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.core.services.startup_config import app_config
 from src.infrastructure.dependencies import get_uow
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.sqlite.initializer import initialize_database
@@ -20,8 +22,6 @@ from src.infrastructure.sqlite.initializer import initialize_database
 # from which the exchange rate started to get saved. This string should never change.
 EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 
-
-logger = logging.getLogger(__name__)
 
 # TODO: If the exchange rates for some currencies will never be found (eg for withdrawn
 # currencies like LTL or LVL) we are continuing to add not_updated exchange rate with
@@ -33,6 +33,54 @@ logger = logging.getLogger(__name__)
 # usefull to add a custom feature that permit to use them is some ways (like converting
 # past transaction in those currencies to the defualt one).
 # For currencies that will be withdrawn in the future it's not possible to know it now.
+
+
+logger = logging.getLogger(__name__)
+
+
+def bootstrap_app() -> None:
+    """Handle application startup configuration."""
+
+    LOG_FILE = app_config.get_log_file()
+
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            },
+            "detailed": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s",
+                "datefmt": "%Y-%m-%dT%H:%M:%S%z",  # z is the the offset to the UTC time in hours
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "standard",
+                # "level": "INFO",
+                # "level": "WARNING",
+                "level": "CRITICAL",
+            },
+            "file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": f"{LOG_FILE}",
+                "maxBytes": 1024 * 1024 * 5,  # 5 MB
+                "backupCount": 5,
+                "formatter": "detailed",
+                "level": "INFO",
+            },
+        },
+        "loggers": {
+            "": {  # root logger
+                "handlers": ["console", "file"],
+                "level": "INFO",
+            },
+        },
+    }
+
+    logging.config.dictConfig(LOGGING_CONFIG)
 
 
 def startup() -> None:

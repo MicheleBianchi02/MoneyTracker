@@ -39,6 +39,7 @@ class UserService:
         -----
             Before saving the password in the database, it is hashed with the
             Argon2 algorithm.
+            The default user settings are also added for that new user.
         """
 
         logger.info("Saving new user")
@@ -48,7 +49,13 @@ class UserService:
             hashed_password = ph.hash(password)
 
             with uow:
-                return uow.user.add(username, hashed_password)
+                id_user = uow.user.add(username, hashed_password)
+                default_settings = uow.user_setting.get(None, None)
+
+                for setting in default_settings:
+                    uow.user_setting.add(id_user, setting.name, setting.value)
+
+                return id_user
 
         except DuplicateEntityError as e:
             logger.info(f"The username:{username} is already present in the database")
@@ -79,7 +86,12 @@ class UserService:
         logger.info("Authenticating user")
         try:
             with uow:
-                stored_hash = uow.user.get(username)[0]
+                user_list = uow.user.get(username)
+
+                if not user_list:
+                    return False
+
+                stored_hash = user_list[0].password
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -87,7 +99,7 @@ class UserService:
 
         try:
             ph = PasswordHasher()
-            ph.verify(stored_hash.password, password)
+            ph.verify(stored_hash, password)
 
             return True
 

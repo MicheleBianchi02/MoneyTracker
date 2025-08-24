@@ -59,4 +59,11 @@ SETTINGS_DATA = [
         ],
         "default": "en",
     },
+    {
+        "name": "default_currency",
+        "constrained": 0,
+        "data_type": "text",
+        "allowed_settings": [],
+        "default": "EUR",
+    },
 ]

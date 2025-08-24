@@ -91,7 +91,7 @@ class UserSettingService:
 
         try:
             with uow:
-                uow.user_setting.get(id_user, setting_name)
+                return uow.user_setting.get(id_user, setting_name)
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))

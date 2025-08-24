@@ -1,74 +1,14 @@
 import logging
 import logging.config
-import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from platformdirs import PlatformDirs
 
 from src.api.endpoints import categories, settings, transactions, users
 from src.core.exceptions import AppException
-from src.core.services.startup import startup
+from src.core.services.startup import bootstrap_app, startup
 
-APPNAME = "MoneyTracker"
-AUTHOR = "Nobody"
-
-dirs = PlatformDirs(APPNAME, AUTHOR)
-
-data_dir = dirs.user_data_dir
-config_dir = dirs.user_config_dir
-log_dir = dirs.user_log_dir
-
-
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
-
-LOG_FILE = os.path.join(log_dir, "app.log")
-# Used when generating UnitOfWork instances
-DATA_FILE = os.path.join(data_dir, "database.db")
-
-
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        },
-        "detailed": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s",
-            "datefmt": "%Y-%m-%dT%H:%M:%S%z",  # z is the the offset to the UTC time in hours
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "standard",
-            # "level": "INFO",
-            # "level": "WARNING",
-            "level": "CRITICAL",
-        },
-        "file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": f"{LOG_FILE}",
-            "maxBytes": 1024 * 1024 * 5,  # 5 MB
-            "backupCount": 5,
-            "formatter": "detailed",
-            "level": "INFO",
-        },
-    },
-    "loggers": {
-        "": {  # root logger
-            "handlers": ["console", "file"],
-            "level": "INFO",
-        },
-    },
-}
-
-logging.config.dictConfig(LOGGING_CONFIG)
+bootstrap_app()
 
 # Define the FastAPI app
 app = FastAPI()
