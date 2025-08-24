@@ -46,6 +46,9 @@ class CategoryRepository(AbstractCategoryRepository):
                     None,
                 )
 
+                if id_prim is not None and cat.secondary is None:
+                    raise DuplicateEntityError("Primary already present in the database")
+
                 if id_prim is None:
                     # add primary if not exist in the database
                     parameters = (
@@ -82,7 +85,16 @@ class CategoryRepository(AbstractCategoryRepository):
                             cat.category_type,
                         )
 
-                        cursor.execute(sql, parameters)
+                    # add secondary
+                    parameters = (
+                        cat.id_user,
+                        cat.year,
+                        cat.secondary,
+                        id_prim,
+                        cat.category_type,
+                    )
+
+                    cursor.execute(sql, parameters)
 
             cursor.close()
 
