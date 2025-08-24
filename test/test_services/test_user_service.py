@@ -63,11 +63,13 @@ def test_authenticate(connection):
 
     user_service.add(uow, username, password)
 
-    is_auth = user_service.authenticate(uow, username, password)
+    is_auth, id_user = user_service.authenticate(uow, username, password)
     assert is_auth
+    assert id_user is not None
 
-    is_auth = user_service.authenticate(uow, username, UtilTest.generate_random_string())
+    is_auth, id_user = user_service.authenticate(uow, username, UtilTest.generate_random_string())
     assert not is_auth
+    assert id_user is None
 
 
 def test_edit(connection):
@@ -90,8 +92,8 @@ def test_edit(connection):
 
     user_service.edit(uow, new_user)
 
-    is_aut = user_service.authenticate(uow, username, new_password)
+    is_aut, id_user = user_service.authenticate(uow, username, new_password)
     assert is_aut
 
-    is_aut = user_service.authenticate(uow, username, password)
+    is_aut, id_user = user_service.authenticate(uow, username, password)
     assert not is_aut
