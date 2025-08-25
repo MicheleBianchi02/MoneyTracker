@@ -24,6 +24,23 @@ RULES:
 
 SETTINGS_DATA = [
     {
+        "name": "value_format",
+        "constrained": 1,
+        "data_type": "text",
+        "allowed_settings": [
+            {"item_value": "comma_dot", "caption": "1,000.00"},
+            {"item_value": "dot_comma", "caption": "1.000,00"},
+            {"item_value": "space_comma", "caption": "1 000,00"},
+            {"item_value": "space_dot", "caption": "1 000.00"},
+            {"item_value": "apo_dot", "caption": "1'000.00"},
+            {"item_value": "apo_comma", "caption": "1'000,00"},
+            {"item_value": "indian", "caption": "1,00,000.00"},
+            {"item_value": "scientific", "caption": "1.00e+3"},
+            {"item_value": "no_separator", "caption": "1000.00"},
+        ],
+        "default": "comma_dot",
+    },
+    {
         "name": "theme",
         "constrained": 1,
         "data_type": "text",

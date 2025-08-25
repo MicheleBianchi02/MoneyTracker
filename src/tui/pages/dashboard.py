@@ -1,0 +1,358 @@
+import calendar
+from datetime import date
+
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
+
+from src.core.services.category_service import CategoryService
+from src.core.services.transaction_service import TransactionService
+from src.core.services.user_setting_service import UserSettingService
+from src.infrastructure.dependencies import get_uow
+from src.tui.utils import DASHBOARD_TAB, Page, clear_screen, draw_navigation_tab
+from src.utils import format_value
+
+active_tab = DASHBOARD_TAB
+
+tr_service = TransactionService()
+setting_service = UserSettingService()
+cat_service = CategoryService()
+
+
+class DashboardPage(Page):
+    def __init__(self, id_user: int) -> None:
+        self.id_user = id_user
+
+        setting = setting_service.get(get_uow(), id_user, "value_format")[0]
+        self.value_format = setting.value
+
+        # code used to dissplay all cat in the filter
+        self._cat_code = "ncsk8swedmsf402323"
+
+    def show(self, console: Console) -> Page:
+        year = date.today().year
+        month = date.today().month
+
+        last_day = calendar.monthrange(year, month)[1]
+        st_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+
+        filters = {
+            "st_date": st_date,
+            "end_date": end_date,
+            "type": "both",
+            "primary": self._cat_code,
+            "secondary": None,
+        }
+
+        while True:
+            clear_screen()
+
+            draw_navigation_tab(active_tab, console)
+
+            self._draw_table(filters, console)
+            console.print(
+                "Action: [bold green]a[/]dd, [bold green]f[/]ilter, "
+                "[bold green]c[/]hange tab, [bold green]q[/]uit"
+            )
+
+            choice = Prompt.ask("Choice", choices=["f", "c", "q"], default="c")
+
+            if choice == "q":
+                return None
+
+            if choice == "f":
+                filters = self._filter(filters, console)
+
+    def _draw_table(self, filters: dict[str, str | date], console: Console) -> None:
+        st_date = filters["st_date"]
+        end_date = filters["end_date"]
+        tr_type = filters["type"]
+        primary = filters["primary"]
+        secondary = filters["secondary"]
+
+        month_column = False
+        year_column = False
+
+        if st_date.year != end_date.year:
+            month_column = True
+            year_column = True
+
+        else:
+            if st_date.month != end_date.month:
+                month_column = True
+
+        cat_type = tr_type if tr_type != "both" else None
+
+        if primary == self._cat_code:
+            primary = None
+            secondary = None
+
+        tr_list = tr_service.get_transaction(
+            get_uow(),
+            self.id_user,
+            st_date,
+            end_date,
+            tr_type=cat_type,
+            primary=primary,
+            secondary=secondary,
+        )
+
+        table = Table(show_header=True, header_style="bold magenta")
+
+        table.add_column("day")
+        if month_column:
+            table.add_column("month")
+        if year_column:
+            table.add_column("year")
+        table.add_column("category")
+        table.add_column("name")
+        table.add_column("value")
+        table.add_column("currency")
+        table.add_column("description")
+
+        for tr in tr_list:
+            if tr.tr_type == "expense":
+                value = "[red]-[/]" + format_value(tr.value, self.value_format)
+
+            else:
+                value = "[green]+[/]" + format_value(tr.value, self.value_format)
+
+            category = tr.secondary if tr.secondary is not None else tr.primary
+
+            if year_column:
+                table.add_row(
+                    str(tr.tr_date.day),
+                    str(tr.tr_date.month),
+                    str(tr.tr_date.year),
+                    category,
+                    tr.name,
+                    value,
+                    tr.currency,
+                    tr.description,
+                )
+
+            elif month_column and not year_column:
+                table.add_row(
+                    str(tr.tr_date.day),
+                    str(tr.tr_date.month),
+                    category,
+                    tr.name,
+                    value,
+                    tr.currency,
+                    tr.description,
+                )
+
+            else:
+                table.add_row(
+                    str(tr.tr_date.day),
+                    category,
+                    tr.name,
+                    value,
+                    tr.currency,
+                    tr.description,
+                )
+
+        info = st_date.isoformat() + " -> " + end_date.isoformat()
+
+        if tr_type == "both":
+            info += " , expense & income"
+        else:
+            info += f" , {tr_type}"
+
+        if category == self._cat_code:
+            info += " , all categories"
+
+        else:
+            if secondary is None:
+                info += f" , {primary}"
+
+            else:
+                info += f" , {primary}-{secondary}"
+
+        console.print(info)
+        console.print(table)
+
+    def _filter(self, actual_filter: dict[str, str | date], console: Console) -> None:
+        st_date = actual_filter["st_date"]
+        end_date = actual_filter["end_date"]
+        tr_type = actual_filter["type"]
+        primary = actual_filter["primary"]
+        secondary = actual_filter["secondary"]
+
+        console.print("\n[yellow]Filter[/]")
+
+        while True:
+            console.print(
+                "\nFilter by: [bold green]d[/]ate, [bold green]t[/]ype, "
+                "[bold green]c[/]ategory, [bold green]e[/]nd"
+            )
+            choice = Prompt.ask("Choice", choices=["d", "t", "c", "e"], default="d")
+
+            if choice == "d":
+                while True:
+                    starting_date = Prompt.ask("Select starting date (eg 2025-01-31)")
+                    ending_date = Prompt.ask("Select ending date (eg 2025-12-31)")
+
+                    try:
+                        st_date = date.fromisoformat(starting_date)
+                        end_date = date.fromisoformat(ending_date)
+
+                        if st_date > end_date:
+                            console.print("[red]Try again[/]")
+                            continue
+                        break
+                    except Exception:
+                        console.print("[red]Try again[/]")
+                        continue
+
+            elif choice == "t":
+                console.print(
+                    "Type: [bold green]i[/]ncome, [bold green]e[/]xpense, [bold green]b[/]oth"
+                )
+                choice = Prompt.ask("Type", choices=["i", "e", "b"])
+
+                if choice == "e":
+                    tr_type = "expense"
+                elif choice == "i":
+                    tr_type = "income"
+                else:
+                    tr_type = "both"
+
+            elif choice == "c":
+                year_list = []
+                tr_date = st_date
+                while tr_date < end_date:
+                    year_list.append(tr_date.year)
+
+                    tr_date = tr_date.replace(year=tr_date.year + 1)
+
+                if tr_type == "income":
+                    cat_list = []
+                    for year in year_list:
+                        cat_list.extend(
+                            cat_service.get_primary_list(get_uow(), self.id_user, year, "income")
+                        )
+
+                    prim_name = [cat.primary for cat in cat_list]
+                    prim_name = set(prim_name)
+                    choice = Prompt.ask(
+                        "Category (leave empty to show all)", choices=prim_name, default=""
+                    )
+
+                    if choice == "":
+                        primary = self._cat_code
+                    else:
+                        primary = choice
+
+                    secondary = None
+
+                elif tr_type == "expense":
+                    prim_list = []
+                    for year in year_list:
+                        prim_list.extend(
+                            cat_service.get_primary_list(
+                                get_uow(),
+                                self.id_user,
+                                year,
+                                "expense",
+                            )
+                        )
+
+                    prim_name = [cat.primary for cat in prim_list]
+                    prim_name = set(prim_name)
+                    choice = Prompt.ask(
+                        "Category (leave empty to show all)", choices=prim_name, default=""
+                    )
+
+                    if choice == "":
+                        primary = self._cat_code
+                        secondary = None
+                    else:
+                        primary = choice
+
+                        sec_list = []
+                        for year in year_list:
+                            sec_list.extend(
+                                cat_service.get_secondary_list(
+                                    get_uow(), self.id_user, year, primary
+                                )
+                            )
+
+                        sec_name = [cat.secondary for cat in sec_list]
+                        sec_name = set(sec_name)
+                        choice = Prompt.ask(
+                            "Subcategory (leave empty to show all)", choices=sec_name, default=""
+                        )
+
+                        if choice == "":
+                            secondary = None
+                        else:
+                            secondary = choice
+
+                elif tr_type == "both":
+                    cat_list = []
+                    for year in year_list:
+                        cat_list.extend(
+                            cat_service.get_primary_list(get_uow(), self.id_user, year, None)
+                        )
+
+                    prim_name = [cat.primary for cat in cat_list]
+                    prim_name = set(prim_name)
+                    choice = Prompt.ask(
+                        "Category (leave empty to show all)", choices=prim_name, default=""
+                    )
+
+                    if choice == "":
+                        primary = self._cat_code
+                        secondary = None
+
+                    else:
+                        primary = choice
+                        for cat in cat_list:
+                            if primary == cat.primary:
+                                tr_type = cat.category_type
+
+                                if tr_type == "expense":
+                                    sec_list = []
+                                    for year in year_list:
+                                        sec_list.extend(
+                                            cat_service.get_secondary_list(
+                                                get_uow(), self.id_user, year, primary
+                                            )
+                                        )
+
+                                    sec_name = [cat.secondary for cat in sec_list]
+                                    sec_name = set(sec_name)
+                                    choice = Prompt.ask(
+                                        "Subcategory (leave empty to show all)",
+                                        choices=sec_name,
+                                        default="",
+                                    )
+
+                                    if choice == "":
+                                        secondary = None
+                                    else:
+                                        secondary = choice
+
+                                else:
+                                    secondary = None
+
+            elif choice == "e":
+                filters = {
+                    "st_date": st_date,
+                    "end_date": end_date,
+                    "type": tr_type,
+                    "primary": primary,
+                    "secondary": secondary,
+                }
+
+                return filters
+
+            filters = {
+                "st_date": st_date,
+                "end_date": end_date,
+                "type": tr_type,
+                "primary": primary,
+                "secondary": secondary,
+            }
