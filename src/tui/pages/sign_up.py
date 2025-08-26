@@ -5,8 +5,9 @@ from rich.tree import Tree
 from src.core.exceptions import ServiceError, UsernameAlreadyPresentError
 from src.core.services.user_service import UserService
 from src.core.services.user_setting_service import UserSettingService
+from src.default_settings import DEFAULT_CURRENCY_NAME
 from src.infrastructure.dependencies import get_uow
-from src.tui.pages.dashboard import DashboardPage
+from src.tui.pages.dashboard_tab import DashboardPage
 from src.tui.utils import Page, clear_screen
 
 
@@ -69,7 +70,7 @@ class SignUpPage(Page):
                     "\nEnter your preferred currency", choices=curr_code, default="EUR"
                 )
 
-                setting_service.add(get_uow(), id_user, "default_currency", default_currency)
+                setting_service.add(get_uow(), id_user, DEFAULT_CURRENCY_NAME, default_currency)
                 setting_service.add(get_uow(), id_user, "language", language)
 
                 for curr in available_curr:

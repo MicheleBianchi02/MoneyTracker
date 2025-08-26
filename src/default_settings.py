@@ -22,6 +22,9 @@ RULES:
         data_type is not text
 """
 
+DEFAULT_CURRENCY_NAME = "default_currency"
+
+
 SETTINGS_DATA = [
     {
         "name": "value_format",
@@ -77,7 +80,7 @@ SETTINGS_DATA = [
         "default": "en",
     },
     {
-        "name": "default_currency",
+        "name": DEFAULT_CURRENCY_NAME,
         "constrained": 0,
         "data_type": "text",
         "allowed_settings": [],

@@ -3,6 +3,7 @@ from rich.console import Console
 DASHBOARD_TAB = "dashboard"
 EXPENSE_TAB = "expense"
 INCOME_TAB = "income"
+CATEGORY_TAB = "category"
 SETTING_TAB = "setting"
 
 
@@ -28,9 +29,9 @@ def draw_navigation_tab(active_tab: str, console: Console) -> None:
         else:
             nav_bar.append(f" {tab_name} ")
 
-    nav_bar.append("                                   ")
+    nav_bar.append(" " * 23)
 
-    right_tab = {SETTING_TAB: "Setting"}
+    right_tab = {CATEGORY_TAB: "Category", SETTING_TAB: "Setting"}
 
     for tab_id, tab_name in right_tab.items():
         if tab_id == active_tab:
