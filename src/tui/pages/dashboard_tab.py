@@ -12,8 +12,7 @@ from src.core.services.transaction_service import TransactionService
 from src.core.services.user_setting_service import UserSettingService
 from src.default_settings import DEFAULT_CURRENCY_NAME
 from src.infrastructure.dependencies import get_uow
-from src.tui.pages.expense_tab import ExpensePage
-from src.tui.utils import DASHBOARD_TAB, Page, clear_screen, draw_navigation_tab
+from src.tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page, clear_screen, draw_navigation_tab
 from src.utils import format_value
 
 active_tab = DASHBOARD_TAB
@@ -41,7 +40,7 @@ class DashboardPage(Page):
         else:
             self.default_currency = self.default_currency[0].value
 
-    def show(self, console: Console) -> Page:
+    def show(self, console: Console) -> str:
         year = date.today().year
         month = date.today().month
 
@@ -91,7 +90,8 @@ class DashboardPage(Page):
                 )
                 choice = Prompt.ask("Which Tab", choices=["e", "i", "c", "s"], default="e")
 
-                return ExpensePage()
+                if choice == "e":
+                    return EXPENSE_TAB
 
             elif choice == "f":
                 filters = self._filter(filters, console)

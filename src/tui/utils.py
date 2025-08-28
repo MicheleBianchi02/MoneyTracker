@@ -13,7 +13,11 @@ class Page:
 
 
 def clear_screen() -> None:
-    print("\x1b[2J\x1b[H")
+    # print("\033[2J\033[H")   # clear/cls screen
+
+    # print("\033[J\033[H\033[J")  # clear/cls screen
+
+    print("\033[3J\033[H\033[J")  # delete also scrollback history
 
 
 def draw_navigation_tab(active_tab: str, console: Console) -> None:

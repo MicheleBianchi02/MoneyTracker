@@ -7,8 +7,8 @@ from src.core.services.user_service import UserService
 from src.core.services.user_setting_service import UserSettingService
 from src.default_settings import DEFAULT_CURRENCY_NAME
 from src.infrastructure.dependencies import get_uow
-from src.tui.pages.dashboard_tab import DashboardPage
-from src.tui.utils import Page, clear_screen
+from src.tui.pages.menu import MenuPage
+from src.tui.utils import DASHBOARD_TAB, Page, clear_screen
 
 
 class SignUpPage(Page):
@@ -132,4 +132,4 @@ class Tutorial(Page):
 
         Prompt.ask(":[blue]---------------------------[/]")
 
-        return DashboardPage(self.id_user)
+        return MenuPage(self.id_user, DASHBOARD_TAB)

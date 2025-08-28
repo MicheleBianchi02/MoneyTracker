@@ -5,9 +5,9 @@ from rich.prompt import Prompt
 
 from src.core.services.user_service import UserService
 from src.infrastructure.dependencies import get_uow
-from src.tui.pages.dashboard_tab import DashboardPage
+from src.tui.pages.menu import MenuPage
 from src.tui.pages.sign_up import SignUpPage
-from src.tui.utils import Page, clear_screen
+from src.tui.utils import DASHBOARD_TAB, Page, clear_screen
 
 user_service = UserService()
 
@@ -42,7 +42,7 @@ class LoginPage(Page):
                 is_auth, id_user = user_service.authenticate(get_uow(), username, password)
 
                 if is_auth:
-                    return DashboardPage(id_user)
+                    return MenuPage(id_user, DASHBOARD_TAB)
 
             elif choice == "2":
                 return SignUpPage()
