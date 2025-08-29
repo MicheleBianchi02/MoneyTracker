@@ -1,9 +1,11 @@
 import random
+import sqlite3
 
 import pytest
 
 from src.core.domain.user import User
 from src.core.exceptions import DuplicateEntityError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -12,7 +14,7 @@ from test.util_test import UtilTest
 # no error is raised, only warning. This is needed because at every test a clean
 # database is needed
 @pytest.fixture
-def db_env() -> str:
+def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -24,13 +26,13 @@ def db_env() -> str:
 
     db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_user(db_env: str) -> None:
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_add_user(connection: str) -> None:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         username = UtilTest.generate_random_string()
         password = UtilTest.generate_random_string()
@@ -55,10 +57,8 @@ def test_add_user(db_env: str) -> None:
             )
 
 
-def test_get_user(db_env: str):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_get_user(connection: str):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow, n_user=100)
         n = 100
@@ -75,10 +75,8 @@ def test_get_user(db_env: str):
             assert sorted(user_list, key=user_sort_key) == user_get_list
 
 
-def test_edit_user(db_env: str) -> None:
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_edit_user(connection: str) -> None:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow, n_user=100)
         n = 100
@@ -126,10 +124,8 @@ def test_edit_user(db_env: str) -> None:
                 assert True
 
 
-def test_delete_user(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_delete_user(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list, _, _ = UtilTest.fill_user_cat_tr(uow, n_user=100)
 

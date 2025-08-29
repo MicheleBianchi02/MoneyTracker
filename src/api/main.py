@@ -9,6 +9,8 @@ from src.core.exceptions import AppException
 from src.core.services.startup import bootstrap_app, startup
 
 bootstrap_app()
+logger = logging.getLogger(__name__)
+
 
 # Define the FastAPI app
 app = FastAPI()
@@ -23,9 +25,6 @@ async def app_exception_handler(request: Request, exc: AppException):
             "code": exc.code,
         },
     )
-
-
-logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")

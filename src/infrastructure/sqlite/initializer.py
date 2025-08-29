@@ -35,6 +35,8 @@ def _init_user(connection: sqlite3.Connection) -> None:
         """
     )
 
+    cursor.close()
+
 
 def _init_exchange_rate(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
@@ -57,6 +59,8 @@ def _init_exchange_rate(connection: sqlite3.Connection) -> None:
        ON
            exchange_rates(rate_date, to_currency)
        """)
+
+    cursor.close()
 
 
 def _init_categories(connection: sqlite3.Connection) -> None:
@@ -152,6 +156,8 @@ def _init_categories(connection: sqlite3.Connection) -> None:
         """
     )
 
+    cursor.close()
+
 
 def _init_transactions(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
@@ -197,6 +203,8 @@ def _init_transactions(connection: sqlite3.Connection) -> None:
         """
     )
 
+    cursor.close()
+
 
 def _init_app_config(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
@@ -211,6 +219,8 @@ def _init_app_config(connection: sqlite3.Connection) -> None:
         );
         """
     )
+
+    cursor.close()
 
 
 def _init_user_settings(connection: sqlite3.Connection) -> None:
@@ -327,6 +337,8 @@ def _init_user_settings(connection: sqlite3.Connection) -> None:
         """
     )
 
+    cursor.close()
+
     _fill_settings(connection)
 
 
@@ -425,5 +437,6 @@ def _fill_settings(connection: sqlite3.Connection) -> None:
                         parameters = (id_allowed, id_setting)
                         cursor.execute(sql_edit, parameters)
 
-        # The rowcount check is needed because with this setup the lastrowid
-        # will not return None or 0 if a conflict happened
+    cursor.close()
+    # The rowcount check is needed because with this setup the lastrowid
+    # will not return None or 0 if a conflict happened

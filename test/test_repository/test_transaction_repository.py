@@ -1,10 +1,12 @@
 import random
+import sqlite3
 from datetime import date
 
 import pytest
 
 from src.core.domain.transaction import TransactionIn, TransactionOut
 from src.core.exceptions import EntityNotFoundError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -13,7 +15,7 @@ from test.util_test import UtilTest
 # no error is raised, only warning. This is needed because at every test a clean
 # database is needed
 @pytest.fixture
-def db_env() -> str:
+def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -25,15 +27,15 @@ def db_env() -> str:
 
     db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_transaction(db_env: str) -> None:
-    db_path = db_env
-
+def test_add_transaction(connection: str) -> None:
     currencies = UtilTest.currencies
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_list = UtilTest.fill_user_cat(uow)
         cat1 = random.choice(cat_list)
@@ -92,7 +94,7 @@ def test_add_transaction(db_env: str) -> None:
             id user not present in the database. foreign_key may be disabled""")
 
 
-def test_get_transaction(db_env):
+def test_get_transaction(connection):
     def compare_tr(tr_list, tr_get):
         for tr in tr_get:
             tr.id = 0
@@ -101,9 +103,7 @@ def test_get_transaction(db_env):
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_list, tr_tot_list = UtilTest.fill_user_cat_tr(uow, n_tr=1000)
         n = 25
@@ -227,12 +227,10 @@ def test_get_transaction(db_env):
             compare_tr(tr_list, tr_get)
 
 
-def test_get_summary(db_env) -> None:
+def test_get_summary(connection) -> None:
     currencies = UtilTest.currencies
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list, cat_list, tr_tot_list = UtilTest.fill_user_cat_tr(uow, n_tr=1000)
         _ = UtilTest.add_exchange_rate(uow, tr_tot_list)
@@ -310,11 +308,11 @@ def test_get_summary(db_env) -> None:
                     secondary=cat_sec.secondary,
                 )
 
-    # Creating a new connection will create a new database only if using db_path =
-    # :memory: If using the temp_path the code below may have some problems
 
+def test_get_summary_exception(connection):
     # If some exchange rate are not present in the database an exception is raised.
-    with UnitOfWork(db_path) as uow:
+    currencies = UtilTest.currencies
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list, cat_list, tr_tot_list = UtilTest.fill_user_cat_tr(uow, n_tr=500)
         n_exc = len(tr_tot_list) - 10
@@ -332,22 +330,20 @@ def test_get_summary(db_env) -> None:
             assert True
 
 
-def test_get_by_id_cat(db_env) -> None:
+def test_get_by_id_cat(connection) -> None:
     def compare_tr(tr_list, tr_get):
         tr_list = sorted(tr_list, key=transaction_sort_key)
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
-        _, cat_list, tr_tot_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
+        user_list, cat_list_tot, tr_tot_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
         n = 25
 
         for _ in range(n):
-            cat = random.choice(cat_list)
-            cat_list = uow.category.get_secondary_list(cat.id_user, None, None)
+            id_user = random.choice(user_list).id
+            cat_list = uow.category.get_secondary_list(id_user, None, None)
             if cat_list:
                 cat = random.choice(cat_list)
 
@@ -368,10 +364,8 @@ def test_get_by_id_cat(db_env) -> None:
                 compare_tr(tr_list, tr_get)
 
 
-def test_edit_transaction(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_edit_transaction(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=1000)
         n = 15
@@ -407,10 +401,8 @@ def test_edit_transaction(db_env):
                     break
 
 
-def test_delete_transaction(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_delete_transaction(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=1000)
         tr1 = random.choice(tr_list)

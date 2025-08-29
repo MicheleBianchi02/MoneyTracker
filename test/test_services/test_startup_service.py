@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date, timedelta
 from random import randint, random
 
@@ -9,7 +10,9 @@ from src.core.services.startup import (
     EXC_DATE_CONFIG_NAME,
     _add_exchange_rate,
     _update_exchange_rate,
+    startup,
 )
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
@@ -17,7 +20,7 @@ from test.util_test import UtilTest
 
 # TODO: Test what happen when there is no internet connection
 @pytest.fixture
-def db_env(tmp_path) -> str:
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -29,12 +32,14 @@ def db_env(tmp_path) -> str:
 
     # db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_startup_add_from_empty(db_env):
+def test_startup_add_from_empty(connection):
     """Test add exchange rate with empty database"""
-    uow = UnitOfWork(db_env)
+    uow = UnitOfWork(connection)
 
     with uow:
         UtilTest.init_database(uow)
@@ -69,9 +74,9 @@ def test_startup_add_from_empty(db_env):
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
 
-def test_startup_add_from_filled(db_env):
+def test_startup_add_from_filled(connection):
     """Test adding exchange rate when already present in the database but not up to date."""
-    uow = UnitOfWork(db_env)
+    uow = UnitOfWork(connection)
 
     with uow:
         UtilTest.init_database(uow)
@@ -106,8 +111,8 @@ def test_startup_add_from_filled(db_env):
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
 
-def test_update(db_env):
-    uow = UnitOfWork(db_env)
+def test_update(connection):
+    uow = UnitOfWork(connection)
     exc_pr = ExchangeRateProvider()
 
     from_currency = exc_pr.base_currency
@@ -168,3 +173,7 @@ def test_update(db_env):
             assert "Empty Response.content" in str(e)
             # If at first try in _update_exchange_rate the rate were not available, it
             # means that requirind them will return an empty content
+
+
+def test_startup(connection):
+    startup()

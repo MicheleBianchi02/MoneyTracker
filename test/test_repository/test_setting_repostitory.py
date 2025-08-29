@@ -1,16 +1,19 @@
 import random
+import sqlite3
 
 import pytest
+
 from src import default_settings
 from src.core.domain.setting import Setting
 from src.core.exceptions import DuplicateEntityError, ForeignKeyError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.repositories.user_settings_repository import _convert_value
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_path(tmp_path) -> str:
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -20,7 +23,9 @@ def db_path(tmp_path) -> str:
 
     db_path = str(db_path)
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
 @pytest.fixture
@@ -40,11 +45,11 @@ def setting_list() -> list[Setting]:
     return setting_list
 
 
-def test_fill_table_setting(db_path, setting_list):
+def test_fill_table_setting(connection, setting_list):
     """Test if filling the database two time with the same connection will create
     problems."""
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         sett_get = uow.user_setting.get(None)
@@ -55,10 +60,10 @@ def test_fill_table_setting(db_path, setting_list):
         compare_sett(setting_list, sett_get)
 
 
-def test_add_setting(db_path, setting_list: list[Setting]):
+def test_add_setting(connection, setting_list: list[Setting]):
     n = 10
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow)
 
@@ -89,8 +94,8 @@ def test_add_setting(db_path, setting_list: list[Setting]):
             compare_sett(setting_list, sett_get)
 
 
-def test_get_setting(db_path, setting_list: list[Setting]):
-    with UnitOfWork(db_path) as uow:
+def test_get_setting(connection, setting_list: list[Setting]):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         sett_get = uow.user_setting.get(None)
@@ -111,9 +116,9 @@ def test_get_setting(db_path, setting_list: list[Setting]):
             compare_sett([setting], sett_get)
 
 
-def test_add_currency_setting(db_path, setting_list) -> None:
+def test_add_currency_setting(connection, setting_list) -> None:
     currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list, _ = UtilTest.fill_user_setting(uow, setting_list)
         user = random.choice(user_list)
@@ -146,9 +151,9 @@ def test_add_currency_setting(db_path, setting_list) -> None:
             id user not present in the database. foreign_key may be disabled""")
 
 
-def test_get_currencies_setting(db_path) -> None:
+def test_get_currencies_setting(connection) -> None:
     currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow)
         for user in user_list:
@@ -163,9 +168,9 @@ def test_get_currencies_setting(db_path) -> None:
                 assert curr in currencies
 
 
-def test_delete_currency_setting(db_path) -> None:
+def test_delete_currency_setting(connection) -> None:
     currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow)
         for user in user_list:
@@ -181,8 +186,8 @@ def test_delete_currency_setting(db_path) -> None:
         assert curr_del not in curr_get
 
 
-def test_delete_user_setting(db_path, setting_list):
-    with UnitOfWork(db_path) as uow:
+def test_delete_user_setting(connection, setting_list):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         user_list, _ = UtilTest.fill_user_setting(uow, setting_list)

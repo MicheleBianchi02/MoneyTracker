@@ -14,7 +14,7 @@ from src.core.exceptions import (
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.startup_config import app_config
-from src.infrastructure.dependencies import get_uow
+from src.infrastructure.dependencies import manage_uow
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.sqlite.initializer import initialize_database
 
@@ -84,44 +84,53 @@ def bootstrap_app() -> None:
 
 
 def startup() -> None:
-    """Add and update exchange rates. Two unit of work instances are needed since
-    multithreading is used and sqlite require different connection for each thread."""
+    """Initialize the database.
+    Add missing exchenge rates from a precise starting date.
+    Update not updated exchange rates present in the database up to
+    the above date.
+    These last two processes are done in a separate thread."""
+
+    # TODO: Since we are adding the exchange rates in a separate thread, there can be
+    # problems if other processes try to write on the database while the thread is
+    # adding the exchange rates. For example when a user sign up and the new username
+    # and password need to be saved in the database. Or when a plugin interact with the
+    # database at startup. Also happen when two different user try to write at the
+    # same time. Since fastAPI create multiple thread for each user.
+    # At the moment to solve this we add a timeout in the sqlite connection such
+    # that no error are raised and the process wait until the lock is removed. Not
+    # ideal with many users.
 
     try:
-        uow_init = get_uow()
-
         # TODO: Find a better way to do this. Connection should not appear here
-        with uow_init:
-            initialize_database(uow_init._connection)
-
-        uow_add = get_uow()
-        uow_upd = get_uow()
+        with manage_uow() as uow:
+            with uow:
+                initialize_database(uow._connection)
 
         logger.info("Running startup service")
-        add_exc_thread = threading.Thread(
-            target=_add_exchange_rate,
-            args=(uow_add,),
+
+        startup_thread = threading.Thread(
+            target=_startup_thread,
             daemon=True,
         )
 
-        update_exc_thread = threading.Thread(
-            target=_update_exchange_rate,
-            args=(uow_upd,),
-            daemon=True,
-        )
-
-        logger.info("Starting add_exchange_rate thread")
-        add_exc_thread.start()
-
-        logger.info("Starting update_exchange_rate thread")
-        update_exc_thread.start()
+        logger.info("Starting startup thread")
+        startup_thread.start()
 
     except Exception as e:
         logger.exception(str(e))
         raise ServiceError("An unexpected system error occurred.") from e
 
-    # MultiThreading is not a problem since the update function doesn't change rates
-    # above the starting date, which is date where the add function operate.
+
+def _startup_thread() -> None:
+    # Since both those function need to write to the database, they need to
+    # to do it not at the same time. Otherwise a Database is locked error would
+    # occour
+    logger.info("Adding new exchange rates to the database")
+    with manage_uow() as uow:
+        _add_exchange_rate(uow)
+    logger.info("Updating old exchange rates")
+    with manage_uow() as uow:
+        _update_exchange_rate(uow)
 
 
 # In the _add_exchange_rate function, if the connection isn't present (or something else

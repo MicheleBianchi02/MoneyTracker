@@ -25,6 +25,8 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
         try:
             cursor.execute(sql, parameters)
 
+            cursor.close()
+
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
                 raise DuplicateEntityError(
@@ -52,6 +54,8 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
             cursor.execute(sql, parameters)
             value = cursor.fetchone()
 
+            cursor.close()
+
             if value is not None:
                 return value[0]
             else:
@@ -78,6 +82,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -98,6 +103,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(

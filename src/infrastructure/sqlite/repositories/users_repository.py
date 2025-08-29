@@ -27,6 +27,7 @@ class UserRepository(AbstractUserRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
             id_user = cursor.lastrowid
 
@@ -74,6 +75,7 @@ class UserRepository(AbstractUserRepository):
 
                 user_list.append(user)
 
+            cursor.close()
             return user_list
 
         except sqlite3.DatabaseError as e:
@@ -97,6 +99,7 @@ class UserRepository(AbstractUserRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
@@ -123,6 +126,7 @@ class UserRepository(AbstractUserRepository):
 
         try:
             cursor.execute(sql, parameter)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -148,5 +152,6 @@ class UserRepository(AbstractUserRepository):
         parameters = (id_user,)
 
         user_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
         if user_get is None:
             raise EntityNotFoundError("user", f"id_user:{id_user}")

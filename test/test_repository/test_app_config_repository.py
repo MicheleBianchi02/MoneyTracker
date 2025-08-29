@@ -1,11 +1,15 @@
+import sqlite3
+
 import pytest
+
 from src.core.exceptions import DuplicateEntityError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_path() -> str:
+def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -17,11 +21,13 @@ def db_path() -> str:
 
     db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_get_app_config(db_path):
-    with UnitOfWork(db_path) as uow:
+def test_add_get_app_config(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         name = "version"
@@ -52,8 +58,8 @@ def test_add_get_app_config(db_path):
         # Here we tested also get
 
 
-def test_edit(db_path):
-    with UnitOfWork(db_path) as uow:
+def test_edit(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         name = "version"
@@ -69,8 +75,8 @@ def test_edit(db_path):
         assert new_value == new_value_get
 
 
-def test_delete(db_path):
-    with UnitOfWork(db_path) as uow:
+def test_delete(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         name = "version"

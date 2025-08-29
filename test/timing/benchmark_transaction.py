@@ -3,28 +3,31 @@
 
 
 import random
+import sqlite3
 
 import pytest
+
 from src.core.domain.transaction import TransactionIn
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.initializer import initialize_database
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_env(tmp_path):
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test"""
     db_path = tmp_path / "database.db"
     db_path = str(db_path)
-    with UnitOfWork(db_path) as uow:
-        initialize_database(uow.connection)
-    return db_path
+
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        initialize_database(connection)
+        return connection
 
 
-def test_add_single_transaction(benchmark, db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_add_single_transaction(benchmark, connection):
+    with UnitOfWork(connection) as uow:
         user_list, _ = UtilTest.fill_user_cat(uow)
         id_user = random.choice(user_list).id
         cat_list = uow.category.get_secondary_list(id_user, None, None)
@@ -46,19 +49,17 @@ def test_add_single_transaction(benchmark, db_env):
     )
 
     def f():
-        with UnitOfWork(db_path) as uow:
+        with UnitOfWork(connection) as uow:
             uow.transaction.add(tr)
 
     benchmark(f)
 
 
-def test_add_multiple_transaction(benchmark, db_env):
+def test_add_multiple_transaction(benchmark, connection):
     """Adding n_tr to the database."""
     n_tr = 10000
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         user_list, _ = UtilTest.fill_user_cat(uow)
         id_user = random.choice(user_list).id
         cat_sec_list = uow.category.get_secondary_list(id_user, None, None)
@@ -87,19 +88,17 @@ def test_add_multiple_transaction(benchmark, db_env):
     benchmark.extra_info["db info"] = f"Adding {n_tr} transactions to the db."
 
     def f():
-        with UnitOfWork(db_path) as uow:
+        with UnitOfWork(connection) as uow:
             uow.transaction.add(tr_list)
 
     benchmark(f)
 
 
-def test_get_all_transactions(benchmark, db_env):
+def test_get_all_transactions(benchmark, connection):
     """Get all transaction from the db.
     If only one user is inserted, the number of transaction returned should be n_tr"""
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         _, _, tr_list = UtilTest.fill_user_cat_tr(
             uow,
             n_user=3,
@@ -108,7 +107,7 @@ def test_get_all_transactions(benchmark, db_env):
         )
 
     def f():
-        with UnitOfWork(db_path) as uow:
+        with UnitOfWork(connection) as uow:
             return uow.transaction.get(1, None, None)
 
     tr_get_list = benchmark(f)
@@ -119,9 +118,8 @@ def test_get_all_transactions(benchmark, db_env):
 
 
 def test_get_summary(benchmark):
-    # db_path = db_env
     #
-    # with UnitOfWork(db_path) as uow:
+    # with UnitOfWork(connection) as uow:
     #     _, _, tr_list = UtilTest.fill_user_cat_tr(
     #         uow,
     #         n_user=1,
@@ -133,8 +131,9 @@ def test_get_summary(benchmark):
     #
 
     db_path = "test/timing/benchmark.db"
+    conn = sqlite3.connect(db_path)
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(conn) as uow:
         user_list = uow.user.get(None)
 
         # remove duplicate
@@ -148,7 +147,7 @@ def test_get_summary(benchmark):
     begin_date = UtilTest.generate_random_date(2005)
 
     def f():
-        with UnitOfWork(db_path) as uow:
+        with UnitOfWork(conn) as uow:
             return uow.transaction.get_summary(3, begin_date, None, "expense", "USD")
 
     tr_get_list, is_updated = benchmark(f)

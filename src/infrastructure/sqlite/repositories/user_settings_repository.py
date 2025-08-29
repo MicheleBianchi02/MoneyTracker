@@ -60,6 +60,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
             parameters = (id_user, id_setting, value_i)
 
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -89,6 +90,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
         cursor.execute(sql, parameters)
 
         sett_get = cursor.fetchone()
+        cursor.close()
 
         if sett_get is None:
             raise EntityNotFoundError("setting", f"setting_name:{setting_name}")
@@ -118,6 +120,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
         cursor.execute(sql, parameters)
 
         id_str = cursor.fetchone()
+        cursor.close()
         if id_str is None:
             raise EntityNotFoundError(
                 "allowed_setting",
@@ -208,6 +211,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
 
                 setting_list.append(setting)
 
+            cursor.close()
             return setting_list
 
         except sqlite3.DatabaseError as e:
@@ -238,6 +242,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             if "FOREIGN KEY constraint failed" in str(e):
@@ -268,7 +273,10 @@ class UserSettingRepository(AbstractUserSettingRepository):
 
         try:
             cursor.execute(sql, parameters)
-            return cursor.fetchall()
+            res = cursor.fetchall()
+            cursor.close()
+
+            return res
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -291,6 +299,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -316,6 +325,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
         parameters = (id_user, currency_code)
 
         curr_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
 
         if curr_get is None:
             raise EntityNotFoundError(

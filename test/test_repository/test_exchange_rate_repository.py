@@ -1,10 +1,12 @@
 import random
+import sqlite3
 from datetime import date
 
 import pytest
 
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.exceptions import InvalidParameterError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -13,7 +15,7 @@ from test.util_test import UtilTest
 # no error is raised, only warning. This is needed because at every test a clean
 # database is needed
 @pytest.fixture
-def db_env() -> str:
+def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -25,15 +27,15 @@ def db_env() -> str:
 
     db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_exchange_rate(db_env: str) -> None:
-    db_path = db_env
-
+def test_add_exchange_rate(connection) -> None:
     currencies = UtilTest.currencies
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=100)
 
@@ -85,10 +87,8 @@ def test_add_exchange_rate(db_env: str) -> None:
             assert True
 
 
-def test_get_exchange_rate(db_env) -> None:
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_get_exchange_rate(connection) -> None:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=500)
@@ -133,10 +133,8 @@ def test_get_exchange_rate(db_env) -> None:
             compare_exc(exc_list, exc_get)
 
 
-def test_get_closest_exchange_rate(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_get_closest_exchange_rate(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=100)
 
@@ -172,10 +170,8 @@ def test_get_closest_exchange_rate(db_env):
                 compare_exc(exc_list, cl_exc_get)
 
 
-def test_get_not_update(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_get_not_update(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=100)
 
@@ -211,11 +207,10 @@ def test_get_not_update(db_env):
             compare_exc(exc_list, exc_get)
 
 
-def test_get_missing_rates_dates(db_env):
-    db_path = db_env
+def test_get_missing_rates_dates(connection):
     currencies = UtilTest.currencies
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         n_date = 300
@@ -259,10 +254,8 @@ def test_get_missing_rates_dates(db_env):
         assert sorted(wrong_date_list) == sorted(missing_date)
 
 
-def test_edit_exchange_rate(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_edit_exchange_rate(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=50)
 
@@ -287,10 +280,8 @@ def test_edit_exchange_rate(db_env):
             assert exc_ed == exc_get[0]
 
 
-def test_delete_exchange_rate(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_delete_exchange_rate(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, _, tr_list = UtilTest.fill_user_cat_tr(uow, n_tr=50)
 

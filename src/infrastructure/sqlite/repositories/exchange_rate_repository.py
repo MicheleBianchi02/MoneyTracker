@@ -48,6 +48,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
                 param_list.append(parameters)
 
             cursor.executemany(sql, param_list)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
@@ -107,6 +108,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
                     )
                 )
 
+            cursor.close()
             return rate_out
 
         except sqlite3.DatabaseError as e:
@@ -160,6 +162,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
                     )
                 )
 
+            cursor.close()
             return rate_list
 
         except sqlite3.DatabaseError as e:
@@ -213,6 +216,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
                     )
                 )
 
+            cursor.close()
             return rate_list
 
         except sqlite3.DatabaseError as e:
@@ -270,6 +274,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
 
         finally:
             cursor.execute("DROP TABLE IF EXISTS temp_dates_to_check")
+            cursor.close()
 
     def edit(self, new_exch: ExchangeRate) -> None:
         cursor = self._connection.cursor()
@@ -296,6 +301,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -324,6 +330,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -355,5 +362,6 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
         )
 
         exc_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
         if exc_get is None:
             raise EntityNotFoundError("transaction", f"exc:{exc}")

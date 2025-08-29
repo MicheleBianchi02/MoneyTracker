@@ -74,6 +74,8 @@ class TransactionRepository(AbstractTransactionRepository):
 
                 cursor.execute(sql, parameters)
 
+            cursor.close()
+
         except sqlite3.DatabaseError as e:
             if "FOREIGN KEY constraint failed" in e:
                 raise ForeignKeyError("Foreign key error") from e
@@ -222,6 +224,7 @@ class TransactionRepository(AbstractTransactionRepository):
 
                 tr_list.append(tr)
 
+            cursor.close()
             return tr_list
 
         except sqlite3.DatabaseError as e:
@@ -795,6 +798,7 @@ class TransactionRepository(AbstractTransactionRepository):
                 level2 = level1.setdefault(secondary_key, {})
                 level2[month_year] = level2.get(month_year, 0.0) + converted_value
 
+            cursor.close()
             return summary_data, is_valid
 
         except sqlite3.DatabaseError as e:
@@ -874,6 +878,7 @@ class TransactionRepository(AbstractTransactionRepository):
 
                 tr_list.append(tr)
 
+            cursor.close()
             return tr_list
 
         except sqlite3.DatabaseError as e:
@@ -934,6 +939,7 @@ class TransactionRepository(AbstractTransactionRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -954,6 +960,7 @@ class TransactionRepository(AbstractTransactionRepository):
 
         try:
             cursor.execute(sql, parameter)
+            cursor.close()
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
@@ -979,5 +986,6 @@ class TransactionRepository(AbstractTransactionRepository):
         parameters = (id_tr,)
 
         tr_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
         if tr_get is None:
             raise EntityNotFoundError("transaction", f"id_tr:{id_tr}")

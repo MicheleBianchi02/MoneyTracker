@@ -1,4 +1,5 @@
 import random
+import sqlite3
 from datetime import date
 
 import pytest
@@ -7,12 +8,13 @@ from src.core.domain.transaction import TransactionOut
 from src.core.exceptions import OperationNotPermittedError
 from src.core.services.category_service import CategoryService
 from src.core.services.transaction_service import TransactionService
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_env(tmp_path) -> str:
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -24,15 +26,15 @@ def db_env(tmp_path) -> str:
 
     # db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_delete_cat(db_env):
-    db_path = db_env
-
+def test_delete_cat(connection):
     cat_service = CategoryService()
 
-    uow = UnitOfWork(db_path)
+    uow = UnitOfWork(connection)
     with uow:
         UtilTest.init_database(uow)
 
@@ -54,17 +56,16 @@ def test_delete_cat(db_env):
     assert sec not in cat_get
 
 
-def test_delete_cat_with_tr(db_env):
+def test_delete_cat_with_tr(connection):
     def compare_tr(tr_list, tr_get):
         tr_list = sorted(tr_list, key=transaction_sort_key)
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
-    db_path = db_env
     tr_service = TransactionService()
     cat_service = CategoryService()
 
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
 

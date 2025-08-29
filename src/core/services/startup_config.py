@@ -25,9 +25,11 @@ class AppConfig:
         self.DATA_FILE = os.path.join(data_dir, "database.db")
 
     def get_data_file(self) -> str:
+        """Return the database file path"""
         return self.DATA_FILE
 
     def get_log_file(self) -> str:
+        """Return the logg file path"""
         return self.LOG_FILE
 
 

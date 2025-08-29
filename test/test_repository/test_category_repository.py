@@ -1,8 +1,11 @@
 import random
+import sqlite3
 
 import pytest
+
 from src.core.domain.category import CategoryIn, CategoryOut
 from src.core.exceptions import ForeignKeyError, InvalidParameterError
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
@@ -11,7 +14,7 @@ from test.util_test import UtilTest
 # no error is raised, only warning. This is needed because at every test a clean
 # database is needed
 @pytest.fixture
-def db_env() -> str:
+def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -23,13 +26,13 @@ def db_env() -> str:
 
     db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_category(db_env):
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+def test_add_primary_category(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow)
         user = random.choice(user_list)
@@ -63,13 +66,13 @@ def test_add_category(db_env):
         cat_get = uow.category.get(id_user, year, "income")
         assert len(cat_get) == 1
 
+
+def test_add_secondary(connection):
+    with UnitOfWork(connection) as uow:
+        # new function since if the random year is the same there can be problems
+
         # -----------------
         # --- Secondary
-    with UnitOfWork(db_path) as uow:
-        # new uow since if the random year is the same there can be problems
-        # Works only if using db_path = :memory: since it create a new db every time a
-        # new connection is created
-
         UtilTest.init_database(uow)
         user_list = UtilTest.fill_user(uow)
         # Add secondary
@@ -119,6 +122,7 @@ def test_add_category(db_env):
 
         # check foreign key
         cat_sec.id_user = 20341232
+
         try:
             uow.category.add(cat_sec)
 
@@ -133,6 +137,13 @@ def test_add_category(db_env):
 
         # category with wrong type
         cat_sec.category_type = "sadasd"
+        cat_prim = CategoryIn(
+            id_user=id_user,
+            year=UtilTest.generate_random_date().year,
+            category_type="income",
+            primary=UtilTest.generate_random_string(),
+            secondary=None,
+        )
         cat_prim.category_type = "asdhas"
         try:
             uow.category.add(cat_sec)
@@ -150,7 +161,7 @@ def test_add_category(db_env):
         # The DuplicateEntityError is not testable from the repostiory.
 
 
-def test_get_primary_list_category(db_env: str):
+def test_get_primary_list_category(connection):
     def compare_prim(cat_list, cat_get):
         """Used only for comparing.
         Since the added category (cat_list) doesn't have category ids we have to
@@ -166,9 +177,7 @@ def test_get_primary_list_category(db_env: str):
         cat_list = sorted(cat_list, key=cat_sort_key)
         assert cat_get == cat_list
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_list = UtilTest.fill_user_cat(uow)
 
@@ -231,7 +240,7 @@ def test_get_primary_list_category(db_env: str):
             compare_prim(cat_comp_list, cat_get)
 
 
-def test_get_secondary_list_category(db_env):
+def test_get_secondary_list_category(connection):
     def compare_sec(cat_list, cat_get):
         """Used only for comparing.
         Since the added category (cat_list) doesn't have category ids we have to
@@ -244,9 +253,7 @@ def test_get_secondary_list_category(db_env):
         cat_list = sorted(cat_list, key=cat_sort_key)
         assert cat_get == cat_list
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_list = UtilTest.fill_user_cat(uow)
 
@@ -301,7 +308,7 @@ def test_get_secondary_list_category(db_env):
                 compare_sec(cat_comp, cat_get)
 
 
-def test_get_category(db_env):
+def test_get_category(connection):
     def compare_cat(cat_list, cat_get):
         """Used only for comparing.
         Since the added category (cat_list) doesn't have category ids we have to
@@ -311,9 +318,7 @@ def test_get_category(db_env):
         cat_list = sorted(cat_list, key=cat_sort_key)
         assert cat_get == cat_list
 
-    db_path = db_env
-
-    with UnitOfWork(db_path) as uow:
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list = UtilTest.fill_user_cat(uow)
 
@@ -361,9 +366,8 @@ def test_get_category(db_env):
             compare_cat(cat_list, cat_get)
 
 
-def test_get_id_category(db_env):
-    db_path = db_env
-    with UnitOfWork(db_path) as uow:
+def test_get_id_category(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list = UtilTest.fill_user_cat(uow)
 
@@ -413,9 +417,8 @@ def test_get_id_category(db_env):
             assert id == cat_sec.id_secondary
 
 
-def test_edit_category(db_env):
-    db_path = db_env
-    with UnitOfWork(db_path) as uow:
+def test_edit_category(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list = UtilTest.fill_user_cat(uow)
 
@@ -515,9 +518,8 @@ def test_edit_category(db_env):
                     assert cat_get_edit.secondary in sec_name_list
 
 
-def test_delete_category(db_env):
-    db_path = db_env
-    with UnitOfWork(db_path) as uow:
+def test_delete_category(connection):
+    with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list = UtilTest.fill_user_cat(uow, n_prim=400)
         # need 400 because during the test we could delete all the income

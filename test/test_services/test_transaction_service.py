@@ -1,5 +1,6 @@
 import calendar
 import random
+import sqlite3
 from datetime import date, timedelta
 
 import pytest
@@ -9,13 +10,14 @@ from src.core.domain.exchange_rate import ExchangeRate
 from src.core.domain.transaction import TransactionIn
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.core.services.transaction_service import TransactionService
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_env(tmp_path) -> str:
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -27,16 +29,18 @@ def db_env(tmp_path) -> str:
 
     # db_path = ":memory:"  # use in memory database
 
-    return db_path
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
 
-def test_add_transaction(db_env):
+def test_add_transaction(connection):
     """In this test we just need to see if the exchange rates are added correctly.
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
 
     tr_service = TransactionService()
-    uow = UnitOfWork(db_env)
+    uow = UnitOfWork(connection)
 
     starting_date = "2025-01-01"
     maximum_date = "2025-05-31"
@@ -168,11 +172,11 @@ def test_add_transaction(db_env):
                     raise AssertionError("Same currency for from_currency and to_currency")
 
 
-def test_edit_transaction(db_env):
+def test_edit_transaction(connection):
     starting_date = "2025-01-01"
     tr_service = TransactionService()
 
-    uow = UnitOfWork(db_env)
+    uow = UnitOfWork(connection)
 
     primary = UtilTest.generate_random_string()
     secondary = None

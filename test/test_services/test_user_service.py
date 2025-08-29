@@ -1,13 +1,16 @@
+import sqlite3
+
 import pytest
 
 from src.core.exceptions import UsernameAlreadyPresentError
 from src.core.services.user_service import UserService
+from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def db_env(tmp_path) -> str:
+def connection(tmp_path) -> sqlite3.Connection:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -18,12 +21,13 @@ def db_env(tmp_path) -> str:
     db_path = str(db_path)
 
     # db_path = ":memory:"  # use in memory database
+    connection_pool = ConnectionPool(db_path, max_connections=1)
+    with connection_pool.managed_connection() as connection:
+        return connection
 
-    return db_path
 
-
-def test_add_user(db_env):
-    uow = UnitOfWork(db_env)
+def test_add_user(connection):
+    uow = UnitOfWork(connection)
 
     user_service = UserService()
 
@@ -46,8 +50,8 @@ def test_add_user(db_env):
         assert "$argon2id$" in user.password
 
 
-def test_authenticate(db_env):
-    uow = UnitOfWork(db_env)
+def test_authenticate(connection):
+    uow = UnitOfWork(connection)
 
     user_service = UserService()
 
@@ -66,8 +70,8 @@ def test_authenticate(db_env):
     assert not is_auth
 
 
-def test_edit(db_env):
-    uow = UnitOfWork(db_env)
+def test_edit(connection):
+    uow = UnitOfWork(connection)
 
     user_service = UserService()
 

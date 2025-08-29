@@ -84,6 +84,8 @@ class CategoryRepository(AbstractCategoryRepository):
 
                         cursor.execute(sql, parameters)
 
+            cursor.close()
+
         except sqlite3.DatabaseError as e:
             if "FOREIGN KEY constraint failed" in str(e):
                 raise ForeignKeyError("Foreign key error") from e
@@ -149,6 +151,7 @@ class CategoryRepository(AbstractCategoryRepository):
 
                 cat_list.append(cat)
 
+            cursor.close()
             return cat_list
 
         except sqlite3.DatabaseError as e:
@@ -218,6 +221,7 @@ class CategoryRepository(AbstractCategoryRepository):
 
                 cat_list.append(cat)
 
+            cursor.close()
             return cat_list
 
         except sqlite3.DatabaseError as e:
@@ -303,6 +307,7 @@ class CategoryRepository(AbstractCategoryRepository):
 
                 cat_list.append(cat)
 
+            cursor.close()
             return cat_list
 
         except sqlite3.DatabaseError as e:
@@ -357,6 +362,7 @@ class CategoryRepository(AbstractCategoryRepository):
             cursor.execute(sql, parameters)
             res = cursor.fetchone()
 
+            cursor.close()
             if res is None:
                 return None
             else:
@@ -395,6 +401,7 @@ class CategoryRepository(AbstractCategoryRepository):
 
         try:
             cursor.execute(sql, parameters)
+            cursor.close()
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
                 f"Error while editing category with: id_cat = {id_cat}, name = {new_name}. "
@@ -431,6 +438,7 @@ class CategoryRepository(AbstractCategoryRepository):
                 )
 
             cursor.execute(sql, parameters)
+            cursor.close()
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
                 f"Error while deleting category with: id_cat = {id_cat}, ",
@@ -455,6 +463,7 @@ class CategoryRepository(AbstractCategoryRepository):
         parameters = (id_cat,)
 
         cat_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
         # None is returned if nothing is found
 
         if cat_get is None:
