@@ -213,6 +213,9 @@ def test_get_missing_rates_dates(connection):
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
+        # test what happen when passing an empty list
+        assert uow.exchange_rate.get_missing_rates_dates([]) == []
+
         n_date = 300
         date_list = []
         for _ in range(n_date):

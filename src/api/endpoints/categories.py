@@ -5,6 +5,7 @@ from src.core.exceptions import (
     BadRequestException,
     CategoryNotFoundException,
     DuplicateCategoryException,
+    InternalServerErrorException,
     InvalidCategoryError,
     OperationNotPermittedError,
     ServiceCategoryNotFoundError,
@@ -17,22 +18,34 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.category_service import CategoryService
 from src.infrastructure.dependencies import get_uow
+from src.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, UNKNOWN_CODE, check_status
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 category_service = CategoryService()
 
 
-@router.post("/", status_code=201)
+@router.post("/", status_code=201, response_model=None)
 def add_category(
     category: CategoryIn | list[CategoryIn],
+    wait_response: bool = True,
     uow: AbstractUnitOfWork = Depends(get_uow),
-):
+) -> str | dict[str, str]:
     """
     Adds a new category or a list of categories.
     """
     try:
-        category_service.add_category(uow, category)
-        return {"message": "Category added successfully."}
+        job_id = category_service.add_category(uow, category)
+
+        if wait_response:
+            status, _ = check_status(job_id)
+
+            if status == COMPLETED_CODE:
+                return {"message": "Category added successfully."}
+            elif status == FAILED_CODE or status == UNKNOWN_CODE:
+                raise InternalServerErrorException()
+
+        else:
+            return job_id
 
     except InvalidCategoryError as e:
         raise BadRequestException(str(e))
@@ -42,6 +55,8 @@ def add_category(
         raise DuplicateCategoryException()
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()
 
 
 @router.get("/primary/", response_model=list[CategoryOut])
@@ -58,6 +73,8 @@ def get_primary_categories(
         return category_service.get_primary_list(uow, id_user, year, cat_type)
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()
 
 
 @router.get("/secondary/", response_model=list[CategoryOut])
@@ -74,6 +91,8 @@ def get_secondary_categories(
         return category_service.get_secondary_list(uow, id_user, year, primary)
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()
 
 
 @router.get("/", response_model=list[CategoryOut])
@@ -90,40 +109,76 @@ def get_all_categories(
         return category_service.get(uow, id_user, year, cat_type)
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()
 
 
-@router.put("/{id_cat}", status_code=204)
-def edit_category(id_cat: int, new_name: str, uow: AbstractUnitOfWork = Depends(get_uow)):
+@router.put("/{id_cat}", status_code=204, response_model=None)
+def edit_category(
+    id_cat: int,
+    new_name: str,
+    wait_response: bool = True,
+    uow: AbstractUnitOfWork = Depends(get_uow),
+) -> str | dict[str, str]:
     """
     Edits the name of a category.
     """
     try:
-        category_service.edit(uow, id_cat, new_name)
-        return
+        job_id = category_service.edit(uow, id_cat, new_name)
+        if wait_response:
+            status, _ = check_status(job_id)
+
+            if status == COMPLETED_CODE:
+                return {"message": "Category added successfully."}
+            elif status == FAILED_CODE or status == UNKNOWN_CODE:
+                raise InternalServerErrorException()
+
+        else:
+            return job_id
+
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()
 
 
-@router.delete("/{id_cat}", status_code=204)
-def delete_category(id_cat: int, uow: AbstractUnitOfWork = Depends(get_uow)):
+@router.delete("/{id_cat}", status_code=204, response_model=None)
+def delete_category(
+    id_cat: int,
+    wait_response: bool = True,
+    uow: AbstractUnitOfWork = Depends(get_uow),
+) -> str | dict[str, str]:
     """
     Deletes a category.
     If some transaction uses that category, it will not be deleted.
     If the category is a primary and has some secondary child, it will not be deleted.
     """
     try:
-        tr_list = category_service.delete(uow, id_cat)
+        ret = category_service.delete(uow, id_cat)
 
-        if tr_list is not None:
+        if isinstance(ret, list):
             raise TransactionUseCategoryException()
+        else:
+            job_id = ret
+
+        if wait_response:
+            status, _ = check_status(job_id)
+
+            if status == COMPLETED_CODE:
+                return {"message": "Category added successfully."}
+            elif status == FAILED_CODE or status == UNKNOWN_CODE:
+                raise InternalServerErrorException()
+
+        else:
+            return job_id
 
     except OperationNotPermittedError:
-        raise BadRequestException(
-            message="Cannot delete a primary with existing secondaries",
-        )
+        raise BadRequestException()
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
     except ServiceError as e:
         raise BadRequestException(str(e))
+    except Exception:
+        raise InternalServerErrorException()

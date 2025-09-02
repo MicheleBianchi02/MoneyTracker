@@ -18,21 +18,25 @@ class AbstractTransactionRepository(ABC):
     """
 
     @abstractmethod
-    def add(self, transaction_list: list[TransactionIn] | TransactionIn) -> None:
+    def add(self, tr_list: list[tuple[int, TransactionIn]]) -> None:
         """
         Add transaction to the database.
 
         Parameters
         ----------
-            - transaction_list (list or TransactionIn): List containing all the transaction
-                that need to saved in the database. The argument can also be a single
-                TransactionIn.
+            - tr_list (list) : List containing tuples that have as first argument
+                the id_category of the transaction's category, and as second
+                argument the TransactionIn instance of the transaction to be
+                saved in the db.
+                Attention: If the id_category is not present in the database
+                a ForeignKeyError is raised. But no control is done wheter the
+                given id_category correspond to the given primary, secondary, type,
+                id_user and year.
 
         Raises
         ------
-            - EntityNotFoundError: If the id_category required is not found in the db.
             - ForeignKeyError: If a foreign key error occour (e.g. a transaction with
-                a non existing id_user is added).
+                a non existing id_user is added or the id_category doesn't exist).
             - RepositoryError: If something went wrong with the database
         """
 
@@ -184,7 +188,7 @@ class AbstractTransactionRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def edit(self, id_tr: int, new_tr: TransactionIn) -> None:
+    def edit(self, id_tr: int, new_id_cat: int, new_tr: TransactionIn) -> None:
         """Edit a transaction.
 
         The only parameter that can be changed are:
@@ -196,19 +200,24 @@ class AbstractTransactionRepository(ABC):
         - currency.
 
         id and id_user can't be changed.
-
+        If the transaction with the given id is not present in the database,
+        nothing is done.
 
         Parameters
         ----------
             - id_tr (int) : id of the transaction to be modified.
+            - new_id_cat (int) : id of the new transaction's category.
+                If the category doesn't change, the old one should be provided.
+                Attention: If the id_category is not present in the database
+                a ForeignKeyError is raised. But no control is done wheter the
+                given id_category correspond to the given primary, secondary, type,
+                id_user and year.
             - new_tr (TransactionIn) : Transaction with the new updated values.
                 Even if the new Transaction has different parameter for id_user,
-                the transaction is changed withoud modifing that parameter.
+                the transaction is changed without modifing that parameter.
 
         Raises
         ------
-            - EntityNotFounError: If the transaction with the given id_tr is not in the db.
-                Or when the new category is not present in the db.
             - RepositoryError: If something went wrong with the database
         """
 
@@ -218,14 +227,35 @@ class AbstractTransactionRepository(ABC):
     def delete(self, id_tr: int) -> None:
         """Delete a transaction from the database.
 
+        If the transaction with the given id is not present in the database,
+        nothing is done.
+
         Parameters
         ----------
             id_tr (int) : id of the transaction to be deleted.
 
         Raises
         ------
-            - EntityNotFounError: If the transaction with the given id_tr is not in the db.
-            - RepositoryError: If something went wrong with the database
+            RepositoryError: If something went wrong with the database
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_id_tr(self, id_tr: int) -> TransactionOut | None:
+        """Get the transaction with  the given id_tr.
+
+        Can be used when editing the transaction and it is need to
+        validate the given paramaters (eg id_tr, id_user...).
+
+        Parameters
+        ----------
+            id_tr (int) : id of the transaction
+
+        Returns
+        -------
+            An instance of TransactionOut corresponding with the given id_tr.
+            If nothing is found, None is returned.
         """
 
         raise NotImplementedError

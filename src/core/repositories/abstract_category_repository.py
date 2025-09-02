@@ -4,19 +4,6 @@ from src.core.domain.category import CategoryIn, CategoryOut
 
 
 class AbstractCategoryRepository(ABC):
-    """Database function relative to categories.
-
-    Method
-    ------
-        - add : Add a list of categories to the database
-        - get_primary_list: Get list of primary categories in the database
-        - get_secondary_list: Get list of secondary categories in the database
-        - get : Get a list of categories for the given date
-        - edit : Edit a category present in the database
-        - delete : Delete a category present in the database
-
-    """
-
     @abstractmethod
     def add(self, cat_list: list[CategoryIn] | CategoryIn) -> None:
         """Add Category to the database.
@@ -121,6 +108,27 @@ class AbstractCategoryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_secondary_list_by_id(self, id_prim: int) -> list[CategoryOut]:
+        """Get secondaries with primary having the given id.
+
+        Parameters
+        ----------
+            id_prim (int) : id of the primary category parent of the required secondaries
+
+        Returns
+        -------
+            A list of CategoryOut instances which have all the same primary id.
+            If none are found, an empty list is returned
+
+        Raise:
+            - EntityNotFoundError: If the primary with the given id is not present
+                in the database.
+            - RepositoryError: If something went wrong with the database
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
     def get(
         self,
         id_user: int,
@@ -187,7 +195,9 @@ class AbstractCategoryRepository(ABC):
     def edit(self, id_cat: int, new_name: str) -> None:
         """Edit a category.
 
-        The only parameter that can be changed is the name
+        The only parameter that can be changed is the name.
+        If the category with the given id is not present in the database,
+        nothing is done.
 
         Parameters
         ----------
@@ -196,8 +206,7 @@ class AbstractCategoryRepository(ABC):
 
         Raises
         ------
-            - EntityNotFounError: If the category with the given id_cat is not in the db.
-            - RepositoryError: If something went wrong with the database
+            RepositoryError: If something went wrong with the database
         """
 
         raise NotImplementedError
@@ -206,14 +215,30 @@ class AbstractCategoryRepository(ABC):
     def delete(self, id_cat: int) -> None:
         """Delete the given category.
 
+        If the category with the given id is not present in the database,
+        nothing is done.
+
         Parameters
         ----------
             id_cat (int) : id of the category to be deleted
 
         Raises
         ------
-            - EntityNotFounError: If the category with the given id_cat is not in the db.
-            - RepositoryError: If something went wrong with the database
+            RepositoryError: If something went wrong with the database
         """
 
         raise NotImplementedError
+
+    @abstractmethod
+    def validate_id_cat(self, id_cat: int) -> bool:
+        """Check if the provided category id is present
+        in the database.
+
+        Parameters
+        ----------
+            id_cat (int) : id of the category
+
+        Returns
+        -------
+            True or False wheter the category exist or not.
+        """

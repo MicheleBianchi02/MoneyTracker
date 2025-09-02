@@ -232,6 +232,66 @@ class CategoryRepository(AbstractCategoryRepository):
                 f"primary_name:{primary}. "
             ) from e
 
+    def get_secondary_list_by_id(self, id_prim: int) -> list[CategoryOut]:
+        cursor = self._connection.cursor()
+
+        sql_prim_name = """
+            SELECT
+                name
+            FROM 
+                categories
+            WHERE
+                id_category = ?
+        """
+
+        parameters = (id_prim,)
+
+        sql_sec_list = """
+            SELECT
+                id_category, 
+                id_user,
+                category_year,
+                name, 
+                category_type
+            FROM 
+                categories
+            WHERE
+                parent_category_id = ?
+        """
+
+        try:
+            cursor.execute(sql_prim_name, parameters)
+            prim_name = cursor.fetchone()
+
+            if prim_name is None:
+                raise EntityNotFoundError("category", f"id_prim:{id_prim}")
+
+            prim_name = prim_name[0]
+
+            cursor.execute(sql_sec_list, parameters)
+            raw_sec_list = cursor.fetchall()
+
+            sec_list = []
+            for sec in raw_sec_list:
+                sec_list.append(
+                    CategoryOut(
+                        id_primary=id_prim,
+                        id_secondary=sec[0],
+                        id_user=sec[1],
+                        year=sec[2],
+                        category_type=sec[4],
+                        primary=prim_name,
+                        secondary=sec[3],
+                    )
+                )
+
+            return sec_list
+
+        except sqlite3.DatabaseError:
+            raise RepositoryError(
+                f"Error while getting secondary categories for the given id_prim:{id_prim}"
+            )
+
     def get(
         self,
         id_user: int,
@@ -397,8 +457,6 @@ class CategoryRepository(AbstractCategoryRepository):
             """
         parameters = (new_name, id_cat)
 
-        self._validate_edit_delete(id_cat)
-
         try:
             cursor.execute(sql, parameters)
             cursor.close()
@@ -418,25 +476,8 @@ class CategoryRepository(AbstractCategoryRepository):
             """
 
         parameters = (id_cat,)  # need to be a tuple
-        self._validate_edit_delete(id_cat)
-
-        sql_sec = """
-            SELECT 1
-            FROM 
-                categories
-            WHERE
-                parent_category_id = ?
-        """
 
         try:
-            cursor.execute(sql_sec, parameters)
-            sec = cursor.fetchone()
-
-            if sec is not None:
-                raise InvalidParameterError(
-                    "Cannot delete a primary with existing secondaries",
-                )
-
             cursor.execute(sql, parameters)
             cursor.close()
         except sqlite3.DatabaseError as e:
@@ -444,12 +485,7 @@ class CategoryRepository(AbstractCategoryRepository):
                 f"Error while deleting category with: id_cat = {id_cat}, ",
             ) from e
 
-    def _validate_edit_delete(self, id_cat: int) -> None:
-        """Check if the category with the given id exist in the db.
-
-        If nothing is found an EntityNotFoundError is raised.
-        """
-
+    def validate_id_cat(self, id_cat: int) -> None:
         cursor = self._connection.cursor()
 
         sql = """

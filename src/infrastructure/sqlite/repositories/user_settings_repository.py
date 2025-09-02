@@ -63,6 +63,9 @@ class UserSettingRepository(AbstractUserSettingRepository):
             cursor.close()
 
         except sqlite3.DatabaseError as e:
+            if "FOREIGN KEY constraint failed" in str(e):
+                raise ForeignKeyError("Foreign key error") from e
+
             raise RepositoryError(
                 "Error while adding user specific setting: "
                 f"id_user:{id_user}, "

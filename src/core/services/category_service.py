@@ -1,29 +1,27 @@
 import logging
+import uuid
 
 from src.core.domain.category import CategoryIn, CategoryOut
 from src.core.domain.transaction import TransactionOut
 from src.core.exceptions import (
-    DuplicateEntityError,
     EntityNotFoundError,
-    ForeignKeyError,
     InvalidCategoryError,
-    InvalidParameterError,
     OperationNotPermittedError,
     RepositoryError,
     ServiceCategoryNotFoundError,
     ServiceDuplicateCategoryError,
     ServiceError,
-    ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.infrastructure import job_manager
+from src.infrastructure.task_queue import task_queue
+from src.infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
 
 logger = logging.getLogger(__name__)
 
 
 class CategoryService:
-    def add_category(
-        self, uow: AbstractUnitOfWork, cat_list: list[CategoryIn] | CategoryIn
-    ) -> None:
+    def add_category(self, uow: AbstractUnitOfWork, cat_list: list[CategoryIn] | CategoryIn) -> str:
         """Add Category to the database.
 
         Parameters
@@ -41,6 +39,11 @@ class CategoryService:
             - ServiceDuplicateCategoryError: If Unique constraint error occour (e.g. two identical
                 category are inserted)
             - ServiceError: If something went wrong with the repository or the service.
+
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Notes
         -----
@@ -60,32 +63,44 @@ class CategoryService:
 
         logger.info(f"Adding {len(list(cat_list))} categories into the database.")
         try:
+            job_id = str(uuid.uuid4())
+
             with uow:
-                uow.category.add(cat_list)
+                for cat in cat_list:
+                    if cat.category_type == "income" and cat.secondary is not None:
+                        logger.error(
+                            "An attempt was made to add a category with type "
+                            "income and a non null secondary. This is not valid"
+                        )
+                        raise InvalidCategoryError(
+                            "An attempt was made to add a category with type "
+                            "income and a non null secondary. This is not valid"
+                        )
 
-        except ForeignKeyError as e:
-            logger.error("The specified id_user is not present in the database")
-            raise ServiceUserNotFoundError(
-                "The provided id_user is not present in the database.",
-            ) from e
+                    # TODO: This check can be improved (normally user will have very few
+                    # categories, so this approach can still be reasonable in terms
+                    # of performace, also considering how many categories will be
+                    # added).
+                    id_cat = uow.category.get_id(
+                        cat.id_user,
+                        cat.year,
+                        cat.category_type,
+                        cat.primary,
+                        cat.secondary,
+                    )
 
-        except InvalidParameterError as e:
-            logger.error(
-                "An attempt was made to add a category with type "
-                "income and a non null secondary. This is not valid"
-            )
-            raise InvalidCategoryError(
-                "An attempt was made to add a category with type "
-                "income and a non null secondary. This is not valid"
-            ) from e
+                    if id_cat is not None:
+                        logger.error(
+                            "An attemp was made to add an already existing category to the database",
+                        )
+                        raise ServiceDuplicateCategoryError(
+                            "An attemp was made to add an already existing category to the database",
+                        )
 
-        except DuplicateEntityError as e:
-            logger.error(
-                "An attemp was made to add an already existing category to the database",
-            )
-            raise ServiceDuplicateCategoryError(
-                "An attemp was made to add an already existing category to the database",
-            ) from e
+            job_manager.add_job(job_id)
+
+            args = (cat_list,)
+            task_queue.put((ADD_CAT_TASK_NAME, job_id, args), block=True)
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -216,29 +231,46 @@ class CategoryService:
             - id_cat (int) : id of the category to be edited
             - new_name (str) : new name of the category to be edited
 
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
+
         Raises
         ------
-            - CategoiryNotFoundError: If the category with the given id_cat is not in the db.
+            - ServiceCategoryNotFoundError: If the category with the given id_cat is not in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
         logger.info("Editing category")
 
         try:
-            with uow:
-                uow.category.edit(id_cat, new_name)
+            job_id = str(uuid.uuid4())
 
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
-            raise ServiceCategoryNotFoundError(
-                """The category with the given id is not present in the database."""
-            ) from e
+            # TODO: Check that the id_user correspond to the given category
+            with uow:
+                cat_exist = uow.category.validate_id_cat(id_cat)
+
+                if not cat_exist:
+                    logger.error(
+                        f"Category with id_cat:{id_cat} doesn't exist in the database",
+                    )
+                    raise ServiceCategoryNotFoundError(
+                        """The category with the given id is not present in the database."""
+                    )
+
+            job_manager.add_job(job_id)
+
+            args = (id_cat, new_name)
+            task_queue.put((EDIT_CAT_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> list[TransactionOut] | None:
+    def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> list[TransactionOut] | str:
         """Delete the given category.
 
         Parameters
@@ -248,11 +280,14 @@ class CategoryService:
         Returns
         -------
             If there are transactions with that id_cat a list of TransactionOut instances
-            is returned. None otherwise (i.e. the category is successfully deleted).
+            is returned. Otherwise, the corresponding job_id is returned.
+            At the beginning the job_status will be pending. When the worker thread
+            finished the operation, the job status get updated.
 
         Raises
         ------
-            - CategoryNotFoundError: If the category with the given id_cat is not in the db.
+            - ServiceCategoryNotFoundError: If the category with the given id_cat is
+                not in the db.
             - OperationNotPermitted: If trying to delete a primary that has some
                 secondaries as child.
             - ServiceError: If something went wrong with the repository or the service.
@@ -267,23 +302,44 @@ class CategoryService:
         logger.info("Deleting category")
 
         try:
+            job_id = str(uuid.uuid4())
+
+            # TODO: Check that the id_user correspond to the given category
             with uow:
+                cat_exist = uow.category.validate_id_cat(id_cat)
+
+                if not cat_exist:
+                    logger.error(
+                        f"Category with id_cat:{id_cat} doesn't exist in the database",
+                    )
+                    raise ServiceCategoryNotFoundError(
+                        """The category with the given id is not present in the database."""
+                    )
+
                 tr_list = uow.transaction.get_by_id_cat(id_cat)
 
-                if tr_list == []:
-                    uow.category.delete(id_cat)
-
-                else:
+                if tr_list != []:
                     logger.info(
                         "Cannot delete category whith transactions using that category",
                     )
                     return tr_list
 
-        except InvalidParameterError as e:
-            logger.exception(str(e))
-            raise OperationNotPermittedError(
-                "Cannot delete a primary with existing secondaries",
-            ) from e
+                sec_list = uow.category.get_secondary_list_by_id(id_cat)
+
+                if not sec_list:
+                    logger.info(
+                        "Cannot delete a primary with existing secondaries",
+                    )
+                    raise OperationNotPermittedError(
+                        "Cannot delete a primary with existing secondaries",
+                    )
+
+                job_manager.add_job(job_id)
+
+                args = (id_cat,)
+                task_queue.put((DELETE_CAT_TASK_NAME, job_id, args), block=True)
+
+                return job_id
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")

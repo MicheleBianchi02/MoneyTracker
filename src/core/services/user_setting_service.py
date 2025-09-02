@@ -1,19 +1,20 @@
 import logging
+import uuid
 
 from src.core.domain.setting import Setting
 from src.core.exceptions import (
     CurrencyNotFoundError,
-    DuplicateEntityError,
     EntityNotFoundError,
-    ForeignKeyError,
     RepositoryError,
     ServiceDuplicateCurrencyError,
     ServiceError,
     ServiceSettingNotFoundError,
-    ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from src.infrastructure.job_manager import job_manager
+from src.infrastructure.task_queue import task_queue
+from src.infrastructure.worker import ADD_SETTING_TASK_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class UserSettingService:
         id_user: int,
         setting_name: str,
         value: int | float | str | bool,
-    ) -> None:
+    ) -> str:
         """Add or update user specific setting in the database.
 
         Parameters
@@ -37,6 +38,11 @@ class UserSettingService:
                 If the setting is constrained, the value is the item_value of the allowed
                 setting, that should be inside the relative table.
 
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
+
         Raises
         ------
             - ServiceSettingNotFoundError: If the setting, with the given setting_name, or the
@@ -47,13 +53,22 @@ class UserSettingService:
         logging.info(
             f"Adding user setting with name {setting_name} for user with id_user: {id_user}"
         )
+
+        job_id = str(uuid.uuid4())
         try:
             with uow:
-                uow.user_setting.add(id_user, setting_name, value)
+                setting = uow.user_setting.get(None, setting_name)
 
-        except EntityNotFoundError as e:
-            logger.error(str(e))
-            raise ServiceSettingNotFoundError("Setting not found") from e
+            if not setting:
+                logger.error(f"Setting with name:{setting_name} not present in the database")
+                raise ServiceSettingNotFoundError("Setting not found")
+
+            job_manager.add_job(job_id)
+
+            args = (id_user, setting_name, value)
+            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -103,7 +118,7 @@ class UserSettingService:
         id_user: int,
         currency_code: str,
         currency_symbol: str | None,
-    ) -> None:
+    ) -> str:
         """Add user specific currency to the database.
 
         Parameters
@@ -114,9 +129,13 @@ class UserSettingService:
             - currency_symbol (str or None) : symbol of the currency (e.g. '$', '€'). If
                 None no symbol is saved in the database.
 
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
+
         Raises
         ------
-            - ServiceUserNotFoundError: If the provided id_user is not present in the database.
             - ServiceDuplicateCurrencyError: If trying to add an already present (for that
                 user) currency code.
             - ServiceError: If something went wrong with the repository or the service.
@@ -132,23 +151,25 @@ class UserSettingService:
             f"to the user with id_user {id_user}"
         )
 
+        job_id = str(uuid.uuid4())
         try:
             with uow:
-                uow.user_setting.add_currency(id_user, currency_code, currency_symbol)
+                curr_list = uow.user_setting.get_currency_list(id_user)
 
-        except ForeignKeyError as e:
-            logger.error("The specified id_user is not present in the database")
-            raise ServiceUserNotFoundError(
-                "The provided id_user is not present in the database.",
-            ) from e
+            if currency_code in curr_list:
+                logger.error(
+                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                )
+                raise ServiceDuplicateCurrencyError(
+                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                )
 
-        except DuplicateEntityError as e:
-            logger.error(
-                f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
-            )
-            raise ServiceDuplicateCurrencyError(
-                f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
-            ) from e
+            job_manager.add_job(job_id)
+
+            args = (id_user, currency_code, currency_symbol)
+            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -190,7 +211,7 @@ class UserSettingService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_currency(self, uow: AbstractUnitOfWork, id_user: int, currency_code: str) -> None:
+    def delete_currency(self, uow: AbstractUnitOfWork, id_user: int, currency_code: str) -> str:
         """Delete user specific currency from the database.
 
         Parameters
@@ -198,18 +219,39 @@ class UserSettingService:
             - id_user (int) : id of the user
             - currency_code (str) : currency to be deleted.
 
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
+
         Raises
         ------
-            - EntityNotFounError: If the currency with the given id_user and currency_code
+            - CurrencyNotFoundError: If the currency with the given id_user and currency_code
                 is not in the db.
             - RepositoryError: If something went wrong with the database
         """
 
         logger.info(f"Deleting curerncy: {currency_code} for user with id_user: {id_user}")
+        job_id = str(uuid.uuid4())
 
         try:
             with uow:
-                uow.user_setting.delete_currency(id_user, currency_code)
+                curr_list = uow.user_setting.get_currency_list(id_user)
+
+            if currency_code in curr_list:
+                logger.error(
+                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                )
+                raise ServiceDuplicateCurrencyError(
+                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                )
+
+            job_manager.add_job(job_id)
+
+            args = (id_user, currency_code)
+            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except EntityNotFoundError as e:
             logger.error(

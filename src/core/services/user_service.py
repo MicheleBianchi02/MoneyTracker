@@ -1,23 +1,25 @@
 import logging
+import uuid
 
 from argon2 import PasswordHasher
 
 from src.core.domain.user import User
 from src.core.exceptions import (
-    DuplicateEntityError,
-    EntityNotFoundError,
     RepositoryError,
     ServiceError,
     ServiceUserNotFoundError,
     UsernameAlreadyPresentError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.infrastructure.job_manager import job_manager
+from src.infrastructure.task_queue import task_queue
+from src.infrastructure.worker import ADD_USER_TASK_NAME
 
 logger = logging.getLogger(__name__)
 
 
 class UserService:
-    def add(self, uow: AbstractUnitOfWork, username: str, password: str) -> int:
+    def add(self, uow: AbstractUnitOfWork, username: str, password: str) -> str:
         """Add a users to the database.
 
         Parameters
@@ -27,7 +29,8 @@ class UserService:
 
         Returns
         -------
-            id of the new User.
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -44,22 +47,27 @@ class UserService:
 
         logger.info("Saving new user")
 
+        job_id = str(uuid.uuid4())
+
         try:
             ph = PasswordHasher()
             hashed_password = ph.hash(password)
 
             with uow:
-                id_user = uow.user.add(username, hashed_password)
-                default_settings = uow.user_setting.get(None, None)
+                user_list = uow.user.get(None)
 
-                for setting in default_settings:
-                    uow.user_setting.add(id_user, setting.name, setting.value)
+            usernames = [user.username for user in user_list]
 
-                return id_user
+            if username in usernames:
+                logger.info(f"The username:{username} is already present in the database")
+                raise UsernameAlreadyPresentError("Username already in use")
 
-        except DuplicateEntityError as e:
-            logger.info(f"The username:{username} is already present in the database")
-            raise UsernameAlreadyPresentError("Username already in use") from e
+            job_manager.add_job(job_id)
+
+            args = (username, hashed_password)
+            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             # This incude also error from the argon2 library
@@ -134,7 +142,7 @@ class UserService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def edit(self, uow: AbstractUnitOfWork, new_user: User) -> None:
+    def edit(self, uow: AbstractUnitOfWork, new_user: User) -> str:
         """Edit a User present in the database.
 
         The only parameter that can be changed are:
@@ -149,6 +157,11 @@ class UserService:
                 Important: The id of the input User should be the same of the old
                 one.
 
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
+
         Raises
         ------
             - UsernameAlreadyPresentError: If the new username is already in use.
@@ -157,6 +170,7 @@ class UserService:
         """
 
         logger.info("Editing user")
+        job_id = str(uuid.uuid4())
 
         try:
             ph = PasswordHasher()
@@ -165,30 +179,49 @@ class UserService:
             new_user.password = hashed_password
 
             with uow:
-                uow.user.edit(new_user)
+                user_list = uow.user.get(None)
 
-        except DuplicateEntityError as e:
-            logger.info(
-                f"The username:{new_user.username} is already present in the database",
-            )
-            raise UsernameAlreadyPresentError("Username already in use") from e
+            id_exist = False
+            username_valid = False
+            for user in user_list:
+                if new_user.id == user.id:
+                    id_exist = True
 
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
-            raise ServiceUserNotFoundError(
-                "The user with the given id is not present in the database",
-            ) from e
+                if new_user.username == user.username:
+                    username_valid = True
+
+            if not id_exist:
+                logger.error(f"User with id: {new_user.id} not found")
+                raise ServiceUserNotFoundError(
+                    "The user with the given id is not present in the database",
+                )
+
+            if not username_valid:
+                logger.error(f"Username: {new_user.username} already present in the database")
+                raise UsernameAlreadyPresentError("Username already in use")
+
+            job_manager.add_job(job_id)
+
+            args = (new_user,)
+            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_user: int) -> None:
+    def delete(self, uow: AbstractUnitOfWork, id_user: int) -> str:
         """Delete a User from the database.
 
         Parameters
         ----------
             id_user (int) : id of the User to be deleted.
+
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -198,15 +231,25 @@ class UserService:
 
         logger.info(f"Deleting user with id_user: {id_user}")
 
+        job_id = str(uuid.uuid4())
         try:
             with uow:
-                uow.user.delete(id_user)
+                user_list = uow.user.get(None)
 
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
-            raise ServiceUserNotFoundError(
-                "The user with the given id is not present in the database",
-            ) from e
+            id_list = [user.id for user in user_list]
+
+            if id_user not in id_list:
+                logger.error(f"User with id: {id_user} not found")
+                raise ServiceUserNotFoundError(
+                    "The user with the given id is not present in the database",
+                )
+
+            job_manager.add_job(job_id)
+
+            args = (id_user,)
+            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))

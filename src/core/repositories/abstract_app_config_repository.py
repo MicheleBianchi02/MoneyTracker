@@ -53,6 +53,7 @@ class AbstractAppConfigRepository(ABC):
 
         Raises
         ------
+            - EntityNotFounError: If the given app config's name is not in the db.
             - RepositoryError: If something went wrong with the database
         """
         raise NotImplementedError
@@ -67,6 +68,7 @@ class AbstractAppConfigRepository(ABC):
 
         Raises
         ------
+            - EntityNotFounError: If the given app config's name is not in the db.
             - RepositoryError: If something went wrong with the database
         """
         raise NotImplementedError

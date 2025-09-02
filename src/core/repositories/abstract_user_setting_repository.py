@@ -26,6 +26,8 @@ class AbstractUserSettingRepository(ABC):
         ------
             - EntityNotFoundError: If the setting, with the given setting_name, or the
                 allowed_setting (if the setting is constrained) are not found in the db.
+            - ForeignKeyError: If a foreign key error occour (e.g. a setting with
+                a non existing id_user is added).
             - RepositoryError: If something went wrong with the database
         """
 

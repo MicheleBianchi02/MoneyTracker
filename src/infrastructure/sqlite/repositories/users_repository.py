@@ -95,7 +95,7 @@ class UserRepository(AbstractUserRepository):
 
         parameters = (new_user.username, new_user.password, new_user.id)
 
-        self._validate_edit_delete(new_user.id)
+        self.validate_id_user(new_user.id)
 
         try:
             cursor.execute(sql, parameters)
@@ -122,7 +122,7 @@ class UserRepository(AbstractUserRepository):
 
         parameter = (id_user,)
 
-        self._validate_edit_delete(id_user)
+        self.validate_id_user(id_user)
 
         try:
             cursor.execute(sql, parameter)
@@ -133,12 +133,7 @@ class UserRepository(AbstractUserRepository):
                 f"Error while deleting User from database with: id_user:{id_user}",
             ) from e
 
-    def _validate_edit_delete(self, id_user: int) -> None:
-        """Check if the user with the given id_user exist in the db.
-
-        If nothing is found an EntityNotFoundError is raised.
-        """
-
+    def validate_id_user(self, id_user: int) -> None:
         cursor = self._connection.cursor()
 
         sql = """

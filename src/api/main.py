@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from src.api.endpoints import categories, settings, transactions, users
 from src.core.exceptions import AppException
+from src.core.services.shutdown_service import shutdown
 from src.core.services.startup import bootstrap_app, startup
 
 bootstrap_app()
@@ -29,10 +30,14 @@ async def app_exception_handler(request: Request, exc: AppException):
 
 @app.on_event("startup")
 async def startup_event():
-    """Log app startup"""
-
     logger.info("Backend API starting up.")
     startup()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    logger.info("Application shutdown")
+    shutdown()
 
 
 app.include_router(transactions.router)

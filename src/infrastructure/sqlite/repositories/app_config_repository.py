@@ -1,6 +1,6 @@
 import sqlite3
 
-from src.core.exceptions import DuplicateEntityError, RepositoryError
+from src.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
 from src.core.repositories.abstract_app_config_repository import AbstractAppConfigRepository
 
 
@@ -80,6 +80,8 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
 
         parameters = (new_value, name)
 
+        self._validate_edit_delete(name)
+
         try:
             cursor.execute(sql, parameters)
             cursor.close()
@@ -101,6 +103,8 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
         """
         parameters = (name,)
 
+        self._validate_edit_delete(name)
+
         try:
             cursor.execute(sql, parameters)
             cursor.close()
@@ -109,3 +113,26 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
             raise RepositoryError(
                 f"Error while delting app configuration's parameter. name:{name}"
             ) from e
+
+    def _validate_edit_delete(self, name: str) -> None:
+        """Check if the given config name exist in the db.
+
+        If nothing is found an EntityNotFoundError is raised.
+        """
+
+        cursor = self._connection.cursor()
+
+        sql = """
+            SELECT 1
+            FROM
+                app_config
+            WHERE
+                name = ?
+        """
+
+        parameters = (name,)
+
+        exc_get = cursor.execute(sql, parameters).fetchone()
+        cursor.close()
+        if exc_get is None:
+            raise EntityNotFoundError("app_config", f"name:{name}")

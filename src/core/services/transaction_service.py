@@ -1,5 +1,6 @@
 import calendar
 import logging
+import uuid
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
@@ -8,8 +9,8 @@ from src.core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ExchangeRateApiError,
-    ForeignKeyError,
     InvalidParameterError,
+    OperationNotPermittedError,
     RepositoryError,
     ServiceCategoryNotFoundError,
     ServiceError,
@@ -19,6 +20,9 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from src.infrastructure.job_manager import job_manager
+from src.infrastructure.task_queue import task_queue
+from src.infrastructure.worker import ADD_TR_TASK_NAME, DELETE_TR_TASK_NAME, EDIT_TR_TASK_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,7 @@ class TransactionService:
         self,
         unit_of_work: AbstractUnitOfWork,
         transaction_list: list[TransactionIn] | TransactionIn,
-    ) -> None:
+    ) -> str:
         """Add transaction to the database.
 
         Parameters
@@ -36,6 +40,11 @@ class TransactionService:
             - transaction_list (list or TransactionIn): List containing all the transaction
                 that need to saved in the database. The argument can also be a single
                 TransactionIn.
+
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -50,43 +59,51 @@ class TransactionService:
         logger.info(f"Adding {len(list(transaction_list))} transactions to the database")
 
         try:
-            date_list = [tr.tr_date for tr in transaction_list]
+            job_id = str(uuid.uuid4())
 
             with unit_of_work as uow:
-                self._add_missing_exchange_rate(uow, date_list)
+                date_list = []
+                valid_tr_list = []
+                for tr in transaction_list:
+                    date_list.append(tr.tr_date)
 
-                uow.transaction.add(transaction_list)
+                    id_cat = uow.category.get_id(
+                        tr.id_user,
+                        tr.tr_date.year,
+                        tr.tr_type,
+                        tr.primary,
+                        tr.secondary,
+                    )
 
-        except ForeignKeyError as e:
-            logger.error("The specified id_user is not present in the database")
-            raise ServiceUserNotFoundError(
-                "The provided id_user is not present in the database.",
-            ) from e
+                    if id_cat is None:
+                        try:
+                            uow.user.validate_id_user(tr.id_user)
+                        except EntityNotFoundError as e:
+                            logger.error(f"{str(e)}")
+                            raise ServiceUserNotFoundError(
+                                f"The provided id_user:{tr.id_user} is not present in the database.",
+                            ) from e
 
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
+                        raise ServiceCategoryNotFoundError(
+                            message="Category not present in the database.",
+                            details={
+                                "primary": tr.primary,
+                                "secondary": tr.secondary,
+                                "type": tr.tr_type,
+                                "year": tr.tr_date.year,
+                            },
+                        )
 
-            # TODO: Edit this with detils. EntityNotFoundError should include a detail
-            # dict as ServiceCategoryNotFoundError
-            raise ServiceCategoryNotFoundError(
-                message="Category not present in the database",
-                details=None,
-            ) from e
+                    valid_tr_list.append((id_cat, tr))
 
-        except InvalidParameterError as e:
-            logger.error(
-                "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
-            )
-            raise ServiceError(
-                "An attempt was made to add an exchange rate with identical "
-                "from_currency and to_currency parameters, which is not allowed."
-            ) from e
+                exc_rates = self._get_missing_exchange_rate(uow, date_list)
 
-        except DuplicateEntityError as e:
-            logger.error("A duplicate exchange rate was added to the database")
-            raise ServiceError(
-                "An attempt was made to add an already existing exchange rate",
-            ) from e
+            job_manager.add_job(job_id)
+
+            args = (exc_rates, valid_tr_list)
+            task_queue.put((ADD_TR_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -265,7 +282,7 @@ class TransactionService:
 
                     date_list = [tr.tr_date for tr in tr_list]
 
-                    self._add_missing_exchange_rate(uow, date_list)
+                    self._get_missing_exchange_rate(uow, date_list)
 
                     summary, is_valid = uow.transaction.get_summary(
                         id_user,
@@ -311,7 +328,7 @@ class TransactionService:
         uow: AbstractUnitOfWork,
         id_tr: int,
         new_tr: TransactionIn,
-    ) -> None:
+    ) -> str:
         """Edit a transaction.
 
         The only parameter that can be changed are:
@@ -322,15 +339,20 @@ class TransactionService:
         - description,
         - currency.
 
-        id and id_user can't be changed.
-
+        id, id_user and the type can't be changed.
 
         Parameters
         ----------
             - id_tr (int) : id of the transaction to be modified.
             - new_tr (TransactionIn) : Transaction with the new updated values.
-                Even if the new Transaction has different parameter for id_user,
-                the transaction is changed withoud modifing that parameter.
+                Attention: The new id_category is found using the id_user, tr_date,
+                primary, secondary inside the new_tr. If those parameter are inconsitend
+                the wrong id_category may be returned.
+
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -344,34 +366,65 @@ class TransactionService:
         logger.info("Editing transaction")
 
         try:
+            job_id = str(uuid.uuid4())
             with uow:
-                uow.transaction.edit(id_tr, new_tr)
+                tr = uow.transaction.get_by_id_tr(id_tr)
 
-                self._add_missing_exchange_rate(uow, [new_tr.tr_date])
+                if tr is None:
+                    logger.error(f"Transaction not found with id_tr:{id_tr}")
+                    raise ServiceTransactionNotFoundError(
+                        """The transaction with the given id is not present in the database."""
+                    )
 
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
+                if tr.tr_type != new_tr.tr_type:
+                    logger.error("Cannot change the transaction type")
+                    raise OperationNotPermittedError("Cannot change the transaction type")
 
-            if "transaction" in str(e):
-                raise ServiceTransactionNotFoundError(
-                    """The transaction with the given id is not present in the database."""
-                ) from e
+                # if the category parameter didn't change, the old id is returned
+                new_id_cat = uow.category.get_id(
+                    id_user=new_tr.id_user,
+                    year=new_tr.tr_date.year,
+                    cat_type=new_tr.tr_type,
+                    primary=new_tr.primary,
+                    secondary=new_tr.secondary,
+                )
 
-            elif "category" in str(e):
-                raise ServiceCategoryNotFoundError(
-                    "The specified category is not present in the database."
-                ) from e
+                if new_id_cat is None:
+                    logger.error("The specified category is not present in the database.")
+                    raise ServiceCategoryNotFoundError(
+                        message="New category not found",
+                        details={
+                            "primary": new_tr.primary,
+                            "secondary": new_tr.secondary,
+                            "type": new_tr.tr_type,
+                            "year": new_tr.tr_date.year,
+                        },
+                    )
+
+                exc_rates = self._get_missing_exchange_rate(uow, [new_tr.tr_date])
+
+            job_manager.add_job(job_id)
+
+            args = (id_tr, new_id_cat, new_tr, exc_rates)
+            task_queue.put((EDIT_TR_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> None:
+    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> str:
         """Delete a transaction from the database.
 
         Parameters
         ----------
             id_tr (int) : id of the transaction to be deleted.
+
+        Returns
+        -------
+            The corresponding job_id. At the beginning the job_status will be pending.
+            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -383,20 +436,29 @@ class TransactionService:
         logger.info("Deleting transaction")
 
         try:
+            job_id = str(uuid.uuid4())
+
             with uow:
-                uow.transaction.delete(id_tr)
-        except EntityNotFoundError as e:
-            logger.error(f"{str(e)}")
-            raise ServiceTransactionNotFoundError(
-                """The transaction with the given id is not present in the database."""
-            ) from e
+                tr = uow.transaction.get_by_id_tr(id_tr)
+
+            if tr is None:
+                logger.error(f"Transaction not found with id_tr:{id_tr}")
+                raise ServiceTransactionNotFoundError(
+                    """The transaction with the given id is not present in the database."""
+                )
+
+            job_manager.add_job(job_id)
+            args = (id_tr,)
+            task_queue.put((DELETE_TR_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def _add_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
-        """Add exchange rates if not already present in the database."""
+    def _get_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
+        """Get missing exchange rates based on the given date_list"""
 
         # This function will work only if in the database we always add the same number
         # of exchange rates (with the same number of currencies) for each date. Also, all
@@ -443,7 +505,7 @@ class TransactionService:
 
             required_dates = list(required_dates)
 
-            # this contain also the from_currency paramter.
+            # this contain also the from_currency parameter.
             available_currencies = exc_pr.available_currencies
 
             try:
@@ -498,4 +560,4 @@ class TransactionService:
 
                             exc_rates.append(exc)
 
-            uow.exchange_rate.add(exc_rates)
+            return exc_rates

@@ -1,14 +1,13 @@
 import logging
 import logging.config
 import threading
+import uuid
 from collections import defaultdict
 from datetime import date, timedelta
 
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.exceptions import (
-    DuplicateEntityError,
     ExchangeRateApiError,
-    InvalidParameterError,
     RepositoryError,
     ServiceError,
 )
@@ -16,7 +15,15 @@ from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.startup_config import app_config
 from src.infrastructure.dependencies import manage_uow
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from src.infrastructure.job_manager import job_manager
 from src.infrastructure.sqlite.initializer import initialize_database
+from src.infrastructure.task_queue import task_queue
+from src.infrastructure.worker import (
+    ADD_APP_CONFIG_TASK_NAME,
+    ADD_EXC_RATE_TASK_NAME,
+    EDIT_EXC_RATE_TASK_NAME,
+    writer_worker,
+)
 
 # This is the name of the column saved in the database. It contains the starting date
 # from which the exchange rate started to get saved. This string should never change.
@@ -83,6 +90,11 @@ def bootstrap_app() -> None:
     logging.config.dictConfig(LOGGING_CONFIG)
 
 
+# TODO: Add a thread that run the update and add exchange rate's function after a
+# certain time (eg 5 hours). In this way the backend can run indefinetly without
+# any problems.
+
+
 def startup() -> None:
     """Initialize the database.
     Add missing exchenge rates from a precise starting date.
@@ -116,15 +128,20 @@ def startup() -> None:
         logger.info("Starting startup thread")
         startup_thread.start()
 
+        worker_thread = threading.Thread(
+            target=writer_worker,
+            daemon=False,  # closed at sthutdown
+        )
+
+        logger.info("Starting worker thread")
+        worker_thread.start()
+
     except Exception as e:
         logger.exception(str(e))
         raise ServiceError("An unexpected system error occurred.") from e
 
 
 def _startup_thread() -> None:
-    # Since both those function need to write to the database, they need to
-    # to do it not at the same time. Otherwise a Database is locked error would
-    # occour
     logger.info("Adding new exchange rates to the database")
     with manage_uow() as uow:
         _add_exchange_rate(uow)
@@ -154,6 +171,8 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
     _add_exchange_rate).
     """
     exc_provider = ExchangeRateProvider()
+
+    job_id = str(uuid.uuid4())
 
     try:
         with uow:
@@ -187,23 +206,10 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     except ExchangeRateApiError:
                         exc_rates = []
 
-                    for updated_exc in exc_rates:
-                        uow.exchange_rate.edit(updated_exc)
+                    job_manager.add_job(job_id)
 
-    except InvalidParameterError as e:
-        logger.error(
-            "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
-        )
-        raise ServiceError(
-            "An attempt was made to add an exchange rate with identical "
-            "from_currency and to_currency parameters, which is not allowed."
-        ) from e
-
-    except DuplicateEntityError as e:
-        logger.error("A duplicate exchange rate was added to the database")
-        raise ServiceError(
-            "An attempt was made to add an already existing exchage rate",
-        ) from e
+                    args = (exc_rates,)
+                    task_queue.put((EDIT_EXC_RATE_TASK_NAME, job_id, args), block=True)
 
     except (RepositoryError, Exception) as e:
         logger.exception(str(e))
@@ -227,6 +233,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
     exc_provider = ExchangeRateProvider()
     max_date = exc_provider.maximum_available_date
     currencies = exc_provider.available_currencies
+
+    job_id = str(uuid.uuid4())
 
     try:
         with uow:
@@ -261,6 +269,7 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     not_available_exc = {}
 
                 if exc_rates:
+                    job_id_not_available = str(uuid.uuid4())
                     # In some cases, the exchange rates are not available even if everything
                     # is ok with the server (e.g. for withdrawn currencies like LTL or LVL)
                     if len(not_available_exc.keys()) != 1:
@@ -281,12 +290,15 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                                 exc_rates.append(exc)
 
-                    uow.exchange_rate.add(exc_rates)
+                    job_manager.add_job(job_id_not_available)
+                    args = (exc_rates,)
+                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id_not_available, args), block=True)
 
             else:
                 first_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
 
                 if first_date is None:
+                    job_id_date = str(uuid.uuid4())
                     year = date.today().year
 
                     first_date = date(year, 1, 1)
@@ -297,7 +309,9 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                     first_date_str = f"{year}-01-01"
 
-                    uow.app_config.add(EXC_DATE_CONFIG_NAME, first_date_str)
+                    job_manager.add_job(job_id_date)
+                    args = (EXC_DATE_CONFIG_NAME, first_date_str)
+                    task_queue.put((ADD_APP_CONFIG_TASK_NAME, job_id_date, args), block=True)
 
                 # It can happen that the first_date is present in app_config even if the
                 # exchange rate table is empty. For example if when the first time this function
@@ -349,22 +363,10 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                                 exc_rates.append(exc)
 
-                    uow.exchange_rate.add(exc_rates)
+                    job_manager.add_job(job_id)
 
-    except InvalidParameterError as e:
-        logger.error(
-            "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
-        )
-        raise ServiceError(
-            "An attempt was made to add an exchange rate with identical "
-            "from_currency and to_currency parameters, which is not allowed."
-        ) from e
-
-    except DuplicateEntityError as e:
-        logger.error("A duplicate exchange rate was added to the database")
-        raise ServiceError(
-            "An attempt was made to add an already existing exchage rate",
-        ) from e
+                    args = (exc_rates,)
+                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
 
     except (RepositoryError, Exception) as e:
         logger.exception(str(e))

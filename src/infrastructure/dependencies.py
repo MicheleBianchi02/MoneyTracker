@@ -7,7 +7,7 @@ from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 def get_uow() -> AbstractUnitOfWork:
     """Provides a Unit of Work instance with a connection from the pool.
-    This funciton is suppose to be used only with fastAPI inside Depends(get_uow())
+    This function is suppose to be used only with fastAPI inside Depends(get_uow())
     since it run automatically the teardown code (release the connection back
     to the pool). next(get_uow()) can also be used, but the connection is never
     released, even if the uow is deleted."""

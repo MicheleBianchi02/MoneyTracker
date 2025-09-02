@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
@@ -227,12 +228,19 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
     def get_missing_rates_dates(self, date_list: list[date] | date) -> list[date]:
         cursor = self._connection.cursor()
 
+        # Since we have the possibility to handle multiple user at the same time
+        # also with mutli-threading, there is the possibility that this funciton is
+        # called multiple times in the same istance. Since sqlite lock the
+        # table with the given name, that table must be unique.
+        # - are interpreted as minus
+        temp_table_name = "tmp_" + str(uuid.uuid4()).replace("-", "_")
+
         try:
             cursor.execute("PRAGMA temp_store = MEMORY")
 
             cursor.execute(
-                """
-                CREATE TEMP TABLE temp_dates_to_check (
+                f"""
+                CREATE TEMP TABLE {temp_table_name} (
                     check_date TEXT PRIMARY KEY
                 )
             """
@@ -246,19 +254,19 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
 
             date_tuple = [(d.isoformat(),) for d in date_list]
 
-            sql = """
-                INSERT INTO temp_dates_to_check 
+            sql = f"""
+                INSERT INTO {temp_table_name} 
                     (check_date)
                 VALUES
                     (?)
             """
             cursor.executemany(sql, date_tuple)
 
-            sql = """
+            sql = f"""
                 SELECT
                     t_d.check_date
                 FROM
-                    temp_dates_to_check t_d
+                     {temp_table_name} t_d
                 LEFT JOIN
                     exchange_rates e ON t_d.check_date = e.rate_date
                 WHERE
@@ -273,7 +281,7 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             raise RepositoryError("Error while getting missing rates dates.") from e
 
         finally:
-            cursor.execute("DROP TABLE IF EXISTS temp_dates_to_check")
+            cursor.execute(f"DROP TABLE IF EXISTS {temp_table_name} ")
             cursor.close()
 
     def edit(self, new_exch: ExchangeRate) -> None:

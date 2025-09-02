@@ -60,6 +60,8 @@ class AbstractUserRepository(ABC):
         - password.
 
         id can't be changed.
+        If the user with the given id is not present in the database,
+        nothing is done.
 
         Parameters
         ----------
@@ -81,6 +83,9 @@ class AbstractUserRepository(ABC):
     def delete(self, id_user: int) -> None:
         """Delete a User from the database.
 
+        If the user with the given id is not present in the database,
+        nothing is done.
+
         Parameters
         ----------
             id_user (int) : id of the User to be deleted.
@@ -89,6 +94,22 @@ class AbstractUserRepository(ABC):
         ------
             - EntityNotFounError: If the user with the given id_user is not in the db.
             - RuntimeError: If something went wrong with the database
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
+    def validate_id_user(self, id_user: int) -> None:
+        """Check if the user with the given id_user exist.
+
+        Parameters
+        ----------
+            id_user (int) : id of the user
+
+        Raises
+        ------
+            EntityNotFoundError: If the user doesn't exists in the database
+
         """
 
         raise NotImplementedError

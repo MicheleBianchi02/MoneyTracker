@@ -15,12 +15,7 @@ class TransactionRepository(AbstractTransactionRepository):
         self._connection = connection
         self._cat_repo = cat_repo
 
-    def add(self, transaction_list: list[TransactionIn] | TransactionIn) -> None:
-        if not isinstance(transaction_list, list):
-            # Need this because if only a Transaction is passed (not a list), in the
-            # for we would get an error since Transaction is not an iteratable.
-            transaction_list = [transaction_list]
-
+    def add(self, tr_list: list[tuple[int, TransactionIn]]) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -37,42 +32,20 @@ class TransactionRepository(AbstractTransactionRepository):
         """
 
         try:
-            for tr in transaction_list:
-                id_user = tr.id_user
-                tr_date = tr.tr_date
-                primary_name = tr.primary
-                secondary_name = tr.secondary
-                tr_type = tr.tr_type
-
-                id_category = self._cat_repo.get_id(
-                    id_user,
-                    tr_date.year,
-                    tr_type,
-                    primary_name,
-                    secondary_name,
-                )
-
-                if id_category is None:
-                    raise EntityNotFoundError(
-                        "category",
-                        f"id_user:{id_user}, "
-                        f"tr_year:{tr_date.year}, "
-                        f"tr_type:{tr_type}, "
-                        f"primary_name:{primary_name}, "
-                        f"secondary_name:{secondary_name}. ",
-                    )
-
-                parameters = (
-                    id_user,
-                    id_category,
-                    tr_date.isoformat(),
+            parameters = [
+                (
+                    tr.id_user,
+                    id_cat,
+                    tr.tr_date.isoformat(),
                     tr.name,
                     tr.value,
                     tr.description,
                     tr.currency,
                 )
+                for id_cat, tr in tr_list
+            ]
 
-                cursor.execute(sql, parameters)
+            cursor.executemany(sql, parameters)
 
             cursor.close()
 
@@ -264,351 +237,12 @@ class TransactionRepository(AbstractTransactionRepository):
 
         # See the comment in the get method for an explanation of the first case clause.
 
-        # Consider a from_currency = 'EUR' for all exchange rates.
-        # Say we want to convert all the transactions to 'USD'.
-
-        # There are different cases that can occour:
-        # 1) tr.currency = 'USD'
-        # In this case no transformation is needed => value is simply tr.value
-
-        # 2) tr.currency = 'EUR' (i.e. == from_currency column)
-        # the resulting value is tr.value * Rate(EUR->USD)
-
-        # 3) tr.currency = 'CAD'  (i.e. != 'EUR' and != 'USD')
-        # the resulting value should be tr.value / Rate(EUR->CAD) * Rate(EUR->USD)
-        # in that case we have that tr.currency is equal to the to_currency column
-        # of the exchange rate's table.
-
-        # 4) If the currency to convert into is the from_currency (ie 'EUR') the
-        # resulting value is tr.value / Rate(EUR->tr.currency)
-
-        # To obtain those value we can perform two LEFT JOIN on the exchange table
-        # One requiring that tr.currency = to_currency and the second one with
-        # to_currency = 'USD' (or ?)
-
-        # In the first and second case the first join will return a NULL column
-
-        # In the third case we have that tr.currency is the same of a row in the to_currency
-        # column of the first join. Meaning that both join will not result in a NULL column
-
-        # In the forth case the first join give a NULL column, the second join will
-        # result in the correct value (not NULL)
-
-        # The first table of the join takes the name of exc_to because we are joining
-        # on the to_currency column and is used when tr.currency = exc_to.to_currency
-        # and when tr.currency = exc_to.from_currency.
-        # The exchange rate's table used in the second join is called exc_f because it's
-        # used when converting from the from_currency to the final currency (the required
-        # one).
-
-        # If some exchange rate are not present in the database we may sum NULL values
-        # (when entering the ELSE statement). In this case the SUM function will simply
-        # ignore these values producing wrong results. The last CASE statement with the
-        # COUNT clause check if all exchange rate needed for the conversion are present
-        # in the database. If not 0 is returned. We don't check that all the exchange
-        # rates are present in the database but that only the required one are present.
-        # i.e. if for all transactions tr.currency = ? the has_null column will be 1 even
-        # if the exchange rate table is empty.
-
-        # sql = """
-        # WITH transactions_with_rates AS (
-        #     SELECT
-        #         tr.tr_value,
-        #         tr.currency,
-        #         tr.tr_date,
-        #
-        #         CASE
-        #             WHEN p.name IS NULL THEN c.name
-        #             ELSE p.name
-        #         END AS primary_category,
-        #
-        #         CASE
-        #             WHEN p.name IS NULL THEN NULL
-        #             ELSE c.name
-        #         END AS secondary_category,
-        #
-        #
-        #         exc_to.from_currency AS base_currency,
-        #         exc_to.rate AS rate_to_base,
-        #         exc_to.rate_date AS date_to_base,
-        #         exc_f.rate AS rate_from_base,
-        #         exc_f.rate_date AS date_from_base
-        #
-        #     FROM
-        #         transactions tr
-        #     INNER JOIN
-        #         categories c ON tr.id_category = c.id_category
-        #     LEFT JOIN
-        #         categories p ON c.parent_category_id = p.id_category
-        #
-        #     -- For each transaction, find the single best "to_base" exchange rate record.
-        #     LEFT JOIN LATERAL (
-        #         SELECT from_currency, rate, rate_date FROM exchange_rates
-        #         WHERE to_currency = tr.currency AND rate_date <= tr.tr_date
-        #         ORDER BY rate_date DESC LIMIT 1
-        #     ) AS exc_to
-        #
-        #     -- For each transaction, find the single best "from_base" exchange rate record.
-        #     LEFT JOIN LATERAL (
-        #         SELECT rate, rate_date FROM exchange_rates
-        #         WHERE to_currency = ? AND rate_date <= tr.tr_date
-        #         ORDER BY rate_date DESC LIMIT 1
-        #     ) AS exc_f
-        #
-        #     WHERE
-        #         tr.id_user = ?
-        #         AND c.category_type = ?
-        #         AND tr.tr_date BETWEEN ? AND ?
-        #
-        #         -- For primary name
-        #         AND (? IS NULL OR
-        #             (p.name = ? AND c.parent_category_id IS NOT NULL) OR
-        #             (c.name = ? AND c.parent_category_id IS NULL)
-        #         )
-        #
-        #         -- For secondary name
-        #         AND (? IS NULL OR
-        #             (c.name = ? AND c.parent_category_id IS NOT NULL)
-        #         )
-        # )
-        #
-        # SELECT
-        #     t.primary_category,
-        #     t.secondary_category,
-        #
-        #     strftime('%Y-%m', t.tr_date) AS month_year,
-        #
-        #     -- Calculate the total value, converting currencies as needed.
-        #     SUM (
-        #         CASE
-        #             -- 1. Transaction is already in the target currency.
-        #             WHEN t.currency = ? THEN t.tr_value
-        #
-        #             -- 2: Direct conversion from base currency to target (e.g. EUR -> USD).
-        #             WHEN t.currency = t.base_currency
-        #                 THEN t.tr_value * t.rate_from_base
-        #
-        #             -- 3: Indirect conversion (e.g., CAD -> EUR -> USD). Both rates must exist.
-        #             WHEN t.rate_to_base IS NOT NULL AND t.rate_from_base IS NOT NULL
-        #                 THEN (t.tr_value / t.rate_to_base) * t.rate_from_base
-        #
-        #             -- 4: Conversion TO the base currency (e.g., CAD -> EUR).
-        #             -- This happens when the target currency IS the base currency.
-        #             WHEN t.base_currency = ?
-        #                 THEN t.tr_value / t.rate_from_base
-        #
-        #             -- If none of the above conditions are met, the conversion is impossible.
-        #             -- e.g. when the exchange rate doesn't exist in the db.
-        #             ELSE NULL
-        #         END
-        #     ) AS total_value,
-        #
-        #     -- Check if all rates used are correct (i.e. have the same date as the
-        #     -- transaction)
-        #     MIN(
-        #         CASE
-        #             -- If no conversion is needed, it's always current.
-        #             WHEN t.currency = ? THEN 1
-        #             -- If converting from base, check the date of the 'from_base' rate.
-        #             WHEN t.currency = t.base_currency
-        #                 THEN IIF(t.tr_date = t.date_from_base, 1, 0)
-        #             -- If converting to base, check the date of the 'to_base' rate.
-        #             WHEN ? = t.base_currency
-        #                 THEN IIF(t.tr_date = t.date_to_base, 1, 0)
-        #             -- For 3-way conversion, both dates must match the transaction date.
-        #             ELSE IIF(t.tr_date = t.date_to_base AND t.tr_date = t.date_from_base, 1, 0)
-        #         END
-        #     ) AS all_rates_are_current,
-        #
-        #     -- SUM skip NULL values. This check that all the summed values are not NULL.
-        #     -- i.e. all the required exchange_rates are present in the database.
-        #     CASE
-        #         WHEN COUNT(*) != COUNT(
-        #             CASE
-        #                 WHEN t.currency = ? THEN 1
-        #                 WHEN t.currency = t.base_currency AND t.rate_from_base IS NOT NULL THEN 1
-        #                 WHEN t.currency != t.base_currency AND ? != t.base_currency
-        #                     AND t.rate_to_base IS NOT NULL AND t.rate_from_base IS NOT NULL THEN 1
-        #                 WHEN ? = t.base_currency AND t.rate_to_base IS NOT NULL THEN 1
-        #                 ELSE NULL
-        #             END
-        #         ) THEN 1
-        #         ELSE 0
-        #     END AS has_null
-        #
-        #     FROM
-        #         transactions_with_rates t
-        #     GROUP BY
-        #         t.primary_category, t.secondary_category, month_year
-        #     ORDER BY
-        #         t.primary_category, t.secondary_category, month_year;
-        # """
-        #
-        # parameters = [
-        #     to_currency,  # second lateral join
-        #     id_user,
-        #     tr_type,
-        #     begin_date,
-        #     end_date,
-        #     primary,
-        #     primary,
-        #     primary,
-        #     secondary,
-        #     secondary,
-        #     to_currency,  # for SUM(CASE)
-        #     to_currency,  # for SUM(CASE)
-        #     to_currency,  # for MIN(CASE)
-        #     to_currency,  # for MIN(CASE)
-        #     to_currency,  # for COUNT(CASE)
-        #     to_currency,  # for COUNT(CASE)
-        #     to_currency,  # for COUNT(CASE)
-        # ]
-
-        sql = """
-        WITH transactions_with_rates AS (
-            SELECT
-                tr.tr_value,
-                tr.currency,
-                tr.tr_date,
-                CASE WHEN p.name IS NULL THEN c.name ELSE p.name END AS primary_category,
-                CASE WHEN p.name IS NULL THEN NULL ELSE c.name END AS secondary_category,
-
-                (SELECT from_currency FROM exchange_rates
-                    WHERE rate_date <= tr.tr_date 
-                    ORDER BY rate_date DESC LIMIT 1) AS base_currency,
-                
-                (SELECT rate FROM exchange_rates 
-                WHERE to_currency = tr.currency AND rate_date <= tr.tr_date 
-                ORDER BY rate_date DESC LIMIT 1) AS rate_to_base,
-
-                (SELECT rate_date FROM exchange_rates 
-                WHERE to_currency = tr.currency AND rate_date <= tr.tr_date 
-                ORDER BY rate_date DESC LIMIT 1) AS date_to_base,
-
-                (SELECT rate FROM exchange_rates 
-                WHERE to_currency = ? AND rate_date <= tr.tr_date 
-                ORDER BY rate_date DESC LIMIT 1) AS rate_from_base,
-
-                (SELECT rate_date FROM exchange_rates 
-                WHERE to_currency = ? AND rate_date <= tr.tr_date 
-                ORDER BY rate_date DESC LIMIT 1) AS date_from_base
-
-            FROM
-                transactions tr
-            INNER JOIN
-                categories c ON tr.id_category = c.id_category
-            LEFT JOIN
-                categories p ON c.parent_category_id = p.id_category
-            WHERE
-                tr.id_user = ?
-                AND c.category_type = ?
-                AND tr.tr_date BETWEEN ? AND ?
-                AND (? IS NULL OR
-                     (p.name = ? AND c.parent_category_id IS NOT NULL) OR
-                     (c.name = ? AND c.parent_category_id IS NULL))
-                AND (? IS NULL OR
-                     (c.name = ? AND c.parent_category_id IS NOT NULL))
-        )
-        SELECT
-            t.primary_category,
-            t.secondary_category,
-            strftime('%Y-%m', t.tr_date) AS month_year,
-
-            SUM(
-                CASE
-                    WHEN t.currency = ? THEN t.tr_value
-                    WHEN t.currency = t.base_currency THEN t.tr_value * t.rate_from_base
-                    WHEN t.rate_to_base IS NOT NULL AND t.rate_from_base IS NOT NULL 
-                        THEN (t.tr_value / t.rate_to_base) * t.rate_from_base
-                    WHEN ? = t.base_currency THEN t.tr_value / t.rate_to_base
-                    ELSE NULL
-                END
-            ) AS total_value,
-
-            MIN(
-                CASE
-                    WHEN t.currency = ? THEN 1
-                    WHEN t.currency = t.base_currency THEN IIF(t.tr_date = t.date_from_base, 1, 0)
-                    WHEN ? = t.base_currency THEN IIF(t.tr_date = t.date_to_base, 1, 0)
-                    ELSE IIF(t.tr_date = t.date_to_base AND t.tr_date = t.date_from_base, 1, 0)
-                END
-            ) AS all_rates_are_current,
-
-            CASE
-                WHEN COUNT(*) != COUNT(
-                    CASE
-                        WHEN t.currency = ? THEN 1
-                        WHEN t.currency = t.base_currency AND t.rate_from_base IS NOT NULL THEN 1
-                        WHEN t.currency != t.base_currency AND ? != t.base_currency AND t.rate_to_base IS NOT NULL AND t.rate_from_base IS NOT NULL THEN 1
-                        WHEN ? = t.base_currency AND t.rate_to_base IS NOT NULL THEN 1
-                        ELSE NULL
-                    END
-                ) THEN 1
-                ELSE 0
-            END AS has_null
-        FROM
-            transactions_with_rates t
-        GROUP BY
-            t.primary_category, t.secondary_category, month_year
-        ORDER BY
-            t.primary_category, t.secondary_category, month_year;
-        """
-
-        parameters = [
-            # For subqueries in CTE
-            to_currency,
-            to_currency,
-            # For WHERE clause in CTE
-            id_user,
-            tr_type,
-            begin_date,
-            end_date,
-            primary,
-            primary,
-            primary,
-            secondary,
-            secondary,
-            # For main SELECT statement
-            to_currency,  # SUM
-            to_currency,  # SUM
-            to_currency,  # MIN
-            to_currency,  # MIN
-            to_currency,  # has_null
-            to_currency,  # has_null
-            to_currency,  # has_null
-        ]
-
         try:
             # TODO: None can't be used as keys in json. Change to something else
 
-            # cursor.execute(sql, parameters)
-            # results = cursor.fetchall()
-            #
-            # is_valid = True  # if the resulting values are correct
-            # summary_data = {}
-            # # The query returns 5 columns: primary, secondary, month_year, total, is_updated
-            # for primary_cat, secondary_cat, month_year, total, all_current, has_null in results:
-            #     secondary_key = secondary_cat if secondary_cat is not None else "N/A"
-            #
-            #     # Set up nested dictionaries
-            #     level1 = summary_data.setdefault(primary_cat, {})
-            #     level2 = level1.setdefault(secondary_key, {})
-            #
-            #     if has_null == 1:
-            #         raise EntityNotFoundError("exchange rate", f"date:{month_year}")
-            #
-            #     # Populate the data for the month
-            #     level2[month_year] = total
-            #
-            #     # all_current is 1 when all the used exchange rates had the same date
-            #     # as the transaction. For example, if a transaction's date is in the
-            #     # future this parameter, for that month, will be 1.
-            #     if all_current == 0:
-            #         is_valid = False
-            #
-            # return summary_data, is_valid
-            #
-
+            # TODO: For better performance we can spawn two threads that can take
+            # transactions and exchange rates indipendently. Maybe there are problem
+            # with the connection (can't share connection with multiple thread)?
             cursor = self._connection.cursor()
 
             # Fetch all relevant raw transactions (same as before)
@@ -886,7 +520,7 @@ class TransactionRepository(AbstractTransactionRepository):
                 f"Error while getting transactions with category id: {id_cat}"
             ) from e
 
-    def edit(self, id_tr: int, new_tr: TransactionIn) -> None:
+    def edit(self, id_tr: int, new_id_cat: int, new_tr: TransactionIn) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -903,32 +537,8 @@ class TransactionRepository(AbstractTransactionRepository):
                 id_tr = ?
             """
 
-        # raise exception if transaction doesn't exist in the db
-        self._validate_edit_delete(id_tr)
-
-        id_user = new_tr.id_user
-        tr_date = new_tr.tr_date
-        primary_name = new_tr.primary
-        secondary_name = new_tr.secondary
-        tr_type = new_tr.tr_type
-
-        id_category = self._cat_repo.get_id(
-            id_user,
-            tr_date.year,
-            tr_type,
-            primary_name,
-            secondary_name,
-        )
-
-        if id_category is None:
-            raise EntityNotFoundError(
-                "category",
-                f"id_user:{id_user}, tr_year:{tr_date.year}, tr_type:{tr_type}, "
-                f"primary_name:{primary_name}, secondary_name:{secondary_name}",
-            )
-
         parameters = (
-            id_category,
+            new_id_cat,
             new_tr.tr_date.isoformat(),
             new_tr.name,
             new_tr.value,
@@ -942,6 +552,10 @@ class TransactionRepository(AbstractTransactionRepository):
             cursor.close()
 
         except sqlite3.DatabaseError as e:
+            if "FOREIGN KEY constraint failed" in e:
+                # when the new id_cat is not present
+                raise ForeignKeyError("Foreign key error") from e
+
             raise RepositoryError(
                 f"Database failed while editing transaction: id_tr:{id_tr}, new_tr:{new_tr}. "
             ) from e
@@ -956,7 +570,7 @@ class TransactionRepository(AbstractTransactionRepository):
             """
         parameter = (id_tr,)
 
-        self._validate_edit_delete(id_tr)
+        self.validate_id_tr(id_tr)
 
         try:
             cursor.execute(sql, parameter)
@@ -967,25 +581,65 @@ class TransactionRepository(AbstractTransactionRepository):
                 f"Database failed while deleting transaction: id_tr:{id_tr}. "
             ) from e
 
-    def _validate_edit_delete(self, id_tr: int) -> None:
-        """Check if the transaction with the given id exist in the db.
-
-        If nothing is found an EntityNotFoundError is raised.
-        """
-
+    def get_by_id_tr(self, id_tr: int) -> TransactionOut | None:
         cursor = self._connection.cursor()
 
+        # See the get method to understand the CASE block below
         sql = """
-            SELECT 1
-            FROM
-                transactions
-            WHERE
-                id_tr = ?;
+        SELECT
+            tr.id_tr,
+            tr.id_user,
+            tr.tr_date,
+            tr.name,
+            tr.tr_value,
+            tr.description,
+            tr.currency,
+            c.category_type,
+            CASE  
+                WHEN p.name IS NULL THEN 
+                    c.name
+                ELSE 
+                    p.name
+                END AS primary_name,
+            CASE  
+                WHEN p.name IS NULL THEN 
+                    NULL
+                ELSE 
+                    c.name
+                END AS secondary_name
+        FROM 
+            transactions tr
+        INNER JOIN
+            categories c ON tr.id_category = c.id_category
+        LEFT JOIN
+            categories p ON c.parent_category_id = p.id_category
+        WHERE 
+            tr.id_tr = ?
         """
 
         parameters = (id_tr,)
 
-        tr_get = cursor.execute(sql, parameters).fetchone()
-        cursor.close()
-        if tr_get is None:
-            raise EntityNotFoundError("transaction", f"id_tr:{id_tr}")
+        try:
+            cursor.execute(sql, parameters)
+            tr_get = cursor.fetchone()
+
+            if tr_get is None:
+                return None
+
+            return TransactionOut(
+                id=tr_get[0],
+                id_user=tr_get[1],
+                primary=tr_get[8],
+                secondary=tr_get[9],
+                tr_type=tr_get[7],
+                tr_date=date.fromisoformat(tr_get[2]),
+                name=tr_get[3],
+                value=tr_get[4],
+                currency=tr_get[6],
+                description=tr_get[7],
+            )
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                f"Database failed while getting transaction with id_tr:{id_tr}. "
+            ) from e

@@ -14,6 +14,8 @@ BACKEND_COMMAND = [
     "src.api.main:app",
     "--host",
     "127.0.0.1",
+    "--workers",
+    "1",
 ]
 BACKEND_CWD = os.path.dirname(os.path.abspath(__file__))
 
