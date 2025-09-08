@@ -13,16 +13,16 @@ class UnitOfWork(AbstractUnitOfWork):
     def __init__(self, connection: sqlite3.Connection):
         self._connection = connection
 
-    def __enter__(self):
-        # Manually begin the transaction.
-        self._connection.execute("BEGIN")
-
         self._user_repo = UserRepository(self._connection)
         self._cat_repo = CategoryRepository(self._connection)
         self._transaction_repo = TransactionRepository(self._connection, self._cat_repo)
         self._user_setting_repo = UserSettingRepository(self._connection)
         self._app_config = AppConfigRepostiory(self._connection)
         self._exchange_rate_repo = ExchangeRateRepository(self._connection)
+
+    def __enter__(self):
+        # Manually begin the transaction.
+        self._connection.execute("BEGIN")
 
         return self
 

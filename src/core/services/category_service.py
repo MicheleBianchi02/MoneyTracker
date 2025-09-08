@@ -13,7 +13,7 @@ from src.core.exceptions import (
     ServiceError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure import job_manager
+from src.infrastructure.job_manager import job_manager
 from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
 
@@ -21,11 +21,21 @@ logger = logging.getLogger(__name__)
 
 
 class CategoryService:
-    def add_category(self, uow: AbstractUnitOfWork, cat_list: list[CategoryIn] | CategoryIn) -> str:
+    def add_category(
+        self,
+        uow: AbstractUnitOfWork,
+        id_user: int,
+        cat_list: list[CategoryIn] | CategoryIn,
+    ) -> str:
         """Add Category to the database.
+
+        All the categories will be added to the user with the given id_user.
+        If the secondary is not None, only the primary is added. If not, the primary
+        is added to the database only if not present, and then the secondary.
 
         Parameters
         ----------
+            - id_user (int) : id of the user for which to add all the categories.
             - cat_list (list or Category) : List containing all the Category that need
                 to be saved in the database.
                 The argument can also be a single CategoryIn.
@@ -34,7 +44,7 @@ class CategoryService:
         ------
             - InvalidCategoryError: If cat_type == "income" and a secondary is provided.
                 Incomes can't have secondaries. Also, when the category type isn't
-                'income' or 'expense'.
+                'income' or 'expense' or when the primary or secondary is empty (ie "").
             - ServiceUserNotFoundError: If the provided id_user is not present in the database.
             - ServiceDuplicateCategoryError: If Unique constraint error occour (e.g. two identical
                 category are inserted)
@@ -67,6 +77,12 @@ class CategoryService:
 
             with uow:
                 for cat in cat_list:
+                    if cat.primary == "" or cat.secondary == "":
+                        logger.error("Empty category's primary or secondary is not valid")
+                        raise InvalidCategoryError(
+                            "Empty category's primary or secondary is not valid"
+                        )
+
                     if cat.category_type == "income" and cat.secondary is not None:
                         logger.error(
                             "An attempt was made to add a category with type "
@@ -82,7 +98,7 @@ class CategoryService:
                     # of performace, also considering how many categories will be
                     # added).
                     id_cat = uow.category.get_id(
-                        cat.id_user,
+                        id_user,
                         cat.year,
                         cat.category_type,
                         cat.primary,
@@ -99,8 +115,10 @@ class CategoryService:
 
             job_manager.add_job(job_id)
 
-            args = (cat_list,)
+            args = (id_user, cat_list)
             task_queue.put((ADD_CAT_TASK_NAME, job_id, args), block=True)
+
+            return job_id
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -221,15 +239,17 @@ class CategoryService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def edit(self, uow: AbstractUnitOfWork, id_cat: int, new_name: str) -> None:
+    def edit(self, uow: AbstractUnitOfWork, id_cat: int, new_name: str, id_user: int) -> None:
         """Edit a category.
 
-        The only parameter that can be changed is the name
+        The only parameter that can be changed is the name. The new name can't be
+        an empty string.
 
         Parameters
         ----------
             - id_cat (int) : id of the category to be edited
             - new_name (str) : new name of the category to be edited
+            - id_user (int) : id_user of the category to be edited
 
         Returns
         -------
@@ -239,6 +259,8 @@ class CategoryService:
         Raises
         ------
             - ServiceCategoryNotFoundError: If the category with the given id_cat is not in the db.
+            - OperationNotPermittedError: If the category with id = id_cat doesn't
+                have the given id_user. Also when the new_name is an empty string (ie "")
             - ServiceError: If something went wrong with the repository or the service.
         """
 
@@ -247,18 +269,26 @@ class CategoryService:
         try:
             job_id = str(uuid.uuid4())
 
-            # TODO: Check that the id_user correspond to the given category
             with uow:
-                cat_exist = uow.category.validate_id_cat(id_cat)
+                cat_id_user = uow.category.validate_id_cat(id_cat)
 
-                if not cat_exist:
-                    logger.error(
-                        f"Category with id_cat:{id_cat} doesn't exist in the database",
-                    )
-                    raise ServiceCategoryNotFoundError(
-                        """The category with the given id is not present in the database."""
-                    )
+            if not cat_id_user:
+                logger.error(
+                    f"Category with id_cat:{id_cat} doesn't exist in the database",
+                )
+                raise ServiceCategoryNotFoundError(
+                    """The category with the given id is not present in the database."""
+                )
 
+            if cat_id_user != id_user:
+                logger.error(
+                    f"The category with id:{id_cat} doesn't pertain to the user with id_user:{id_user}"
+                )
+                raise OperationNotPermittedError("The transaction doesn't pertain to the user")
+
+            if new_name == "":
+                logger.error("Empty category's primary or secondary is not valid")
+                raise InvalidCategoryError("Empty category's primary or secondary is not valid")
             job_manager.add_job(job_id)
 
             args = (id_cat, new_name)
@@ -270,12 +300,15 @@ class CategoryService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_cat: int) -> list[TransactionOut] | str:
+    def delete(
+        self, uow: AbstractUnitOfWork, id_cat: int, id_user: int
+    ) -> list[TransactionOut] | str:
         """Delete the given category.
 
         Parameters
         ----------
-            id_cat (int) : id of the category to be deleted
+            - id_cat (int) : id of the category to be deleted
+            - id_user (int) : id_user of the category to be edited
 
         Returns
         -------
@@ -289,12 +322,12 @@ class CategoryService:
             - ServiceCategoryNotFoundError: If the category with the given id_cat is
                 not in the db.
             - OperationNotPermitted: If trying to delete a primary that has some
-                secondaries as child.
+                secondaries as child or the category doesn't have the provided id_user.
             - ServiceError: If something went wrong with the repository or the service.
 
         Notes
         -----
-            Deleting a category is not allowed if there transaction that uses that
+            Deleting a category is not allowed if there are transactions that uses that
             category. Also, it's not allowed if category to be deleted is a primary and
             still has secondaries as child.
         """
@@ -304,17 +337,22 @@ class CategoryService:
         try:
             job_id = str(uuid.uuid4())
 
-            # TODO: Check that the id_user correspond to the given category
             with uow:
-                cat_exist = uow.category.validate_id_cat(id_cat)
+                cat_id_user = uow.category.validate_id_cat(id_cat)
 
-                if not cat_exist:
+                if not cat_id_user:
                     logger.error(
                         f"Category with id_cat:{id_cat} doesn't exist in the database",
                     )
                     raise ServiceCategoryNotFoundError(
                         """The category with the given id is not present in the database."""
                     )
+
+                if cat_id_user != id_user:
+                    logger.error(
+                        f"The category with id:{id_cat} doesn't pertain to the user with id_user:{id_user}"
+                    )
+                    raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
                 tr_list = uow.transaction.get_by_id_cat(id_cat)
 
@@ -326,7 +364,7 @@ class CategoryService:
 
                 sec_list = uow.category.get_secondary_list_by_id(id_cat)
 
-                if not sec_list:
+                if sec_list:
                     logger.info(
                         "Cannot delete a primary with existing secondaries",
                     )

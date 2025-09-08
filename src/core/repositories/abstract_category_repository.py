@@ -5,11 +5,14 @@ from src.core.domain.category import CategoryIn, CategoryOut
 
 class AbstractCategoryRepository(ABC):
     @abstractmethod
-    def add(self, cat_list: list[CategoryIn] | CategoryIn) -> None:
+    def add(self, id_user: int, cat_list: list[CategoryIn] | CategoryIn) -> None:
         """Add Category to the database.
+
+        All the categories will be added to the user with the given id_user.
 
         Parameters
         ----------
+            - id_user (int) : id of the user for which the categories will be added.
             - cat_list (list or Category) : List containing all the Category that need
                 to be saved in the database.
                 The argument can also be a single CategoryIn.
@@ -230,7 +233,7 @@ class AbstractCategoryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def validate_id_cat(self, id_cat: int) -> bool:
+    def validate_id_cat(self, id_cat: int) -> int | None:
         """Check if the provided category id is present
         in the database.
 
@@ -240,5 +243,6 @@ class AbstractCategoryRepository(ABC):
 
         Returns
         -------
-            True or False wheter the category exist or not.
+            None if the category with the corresponding id is not found in the
+            database. If present, the id_user is returned.
         """

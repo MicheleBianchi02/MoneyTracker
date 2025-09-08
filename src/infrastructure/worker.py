@@ -39,7 +39,7 @@ DELETE_APP_CONFIG_TASK_NAME = "delete_app_config"
 END_WORKER_TASK_NAME = "end_task"
 
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def writer_worker() -> None:
@@ -51,7 +51,7 @@ def writer_worker() -> None:
             try:
                 task_name, job_id, args = task_queue.get(block=True)
 
-                logger.info(f"Processing writing task: {task_name}")
+                logger.info(f"Processing writing task: {task_name}, job_id:{job_id}")
 
                 # ------------
                 # --- User ---
@@ -69,7 +69,7 @@ def writer_worker() -> None:
                             for setting in default_settings:
                                 uow.user_setting.add(id_user, setting.name, setting.value)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE, result={"id_user": id_user})
 
                     except (DuplicateEntityError, RepositoryError, Exception) as e:
@@ -83,7 +83,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.user.edit(new_user)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (
@@ -102,7 +102,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.user.delete(id_user)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -115,12 +115,13 @@ def writer_worker() -> None:
 
                 elif task_name == ADD_CAT_TASK_NAME:
                     try:
-                        cat_list = args[0]
+                        id_user = args[0]
+                        cat_list = args[1]
 
                         with uow:
-                            uow.category.add(cat_list)
+                            uow.category.add(id_user, cat_list)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (
@@ -141,7 +142,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.category.edit(id_cat, new_name)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (RepositoryError, Exception) as e:
@@ -155,7 +156,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.category.delete(id_cat)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (RepositoryError, Exception) as e:
@@ -169,14 +170,15 @@ def writer_worker() -> None:
                 elif task_name == ADD_TR_TASK_NAME:
                     try:
                         exc_rates = args[0]
-                        tr_list = args[1]
+                        id_user = args[1]
+                        tr_list = args[2]
 
                         with uow:
                             if exc_rates:
                                 uow.exchange_rate.add(exc_rates)
-                            uow.transaction.add(tr_list)
+                            uow.transaction.add(id_user, tr_list)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except DuplicateEntityError as e:
@@ -208,7 +210,7 @@ def writer_worker() -> None:
                             if exc_rates:
                                 uow.exchange_rate.add(exc_rates)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except DuplicateEntityError as e:
@@ -236,7 +238,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.transaction.delete(id_tr)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (RepositoryError, Exception) as e:
@@ -256,7 +258,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.user_setting.add(id_user, setting_name, value)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (EntityNotFoundError, ForeignKeyError, RepositoryError, Exception) as e:
@@ -272,7 +274,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.user_setting.add_currency(id_user, currency_code, currency_symbol)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (DuplicateEntityError, ForeignKeyError, RepositoryError, Exception) as e:
@@ -287,7 +289,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.user_setting.delete_currency(id_user, currency_code)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -306,7 +308,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.app_config.add(exc_date_config_name, first_date_str)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (DuplicateEntityError, RepositoryError, Exception) as e:
@@ -321,7 +323,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.app_config.edit(name, new_value)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (
@@ -340,7 +342,7 @@ def writer_worker() -> None:
                         with uow:
                             uow.app_config.delete(name)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -359,7 +361,7 @@ def writer_worker() -> None:
                             for updated_exc in exc_rate_list:
                                 uow.exchange_rate.add(updated_exc)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (InvalidParameterError, DuplicateEntityError, Exception) as e:
@@ -374,7 +376,7 @@ def writer_worker() -> None:
                             for updated_exc in exc_rate_list:
                                 uow.exchange_rate.edit(updated_exc)
 
-                        logger.info("Task completed")
+                        logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
 
                     except (EntityNotFoundError, Exception) as e:
@@ -389,7 +391,7 @@ def writer_worker() -> None:
                     # When closing the applicaiton, for example with Ctrl+C, this
                     # thread might be terminated abruptly, potentially leaving a database
                     # transaction half-finished and corrupt
-                    logger.info("Closing wrting worker")
+                    logger.info("Closing writing worker")
                     break
 
             except Exception as e:

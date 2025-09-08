@@ -15,7 +15,7 @@ class TransactionRepository(AbstractTransactionRepository):
         self._connection = connection
         self._cat_repo = cat_repo
 
-    def add(self, tr_list: list[tuple[int, TransactionIn]]) -> None:
+    def add(self, id_user: int, tr_list: list[tuple[int, TransactionIn]]) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -34,7 +34,7 @@ class TransactionRepository(AbstractTransactionRepository):
         try:
             parameters = [
                 (
-                    tr.id_user,
+                    id_user,
                     id_cat,
                     tr.tr_date.isoformat(),
                     tr.name,

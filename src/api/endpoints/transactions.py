@@ -2,11 +2,14 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 
+from src.api.dependencies import get_id_user
 from src.core.domain.transaction import TransactionIn, TransactionOut
 from src.core.exceptions import (
     BadRequestException,
     CategoryNotFoundException,
+    ForbiddenException,
     InternalServerErrorException,
+    OperationNotPermittedError,
     ServiceCategoryNotFoundError,
     ServiceError,
     ServiceTransactionNotFoundError,
@@ -28,20 +31,18 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 transaction_service = TransactionService()
 
 
-time_interval = 0.07  # seconds
-
-
 @router.post("/", status_code=201, response_model=None)
 def add_transaction(
-    transaction: TransactionIn,
+    transaction: list[TransactionIn] | TransactionIn,
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """Adds a new transaction.
     If wait_response is True nothing is returned, otherwise the job_id is returned."""
 
     try:
-        job_id = transaction_service.add_transaction(uow, transaction)
+        job_id = transaction_service.add_transaction(uow, id_user, transaction)
 
         if wait_response:
             status, _ = check_status(job_id)
@@ -49,7 +50,9 @@ def add_transaction(
             if status == COMPLETED_CODE:
                 return {"message": "Transaction added successfully."}
             elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
+                raise InternalServerErrorException(
+                    f"Internal server error - job_status:{status} ",
+                )
 
         else:
             return job_id
@@ -60,18 +63,16 @@ def add_transaction(
         raise CategoryNotFoundException()
     except ServiceError:
         raise BadRequestException()
-    except Exception:
-        raise InternalServerErrorException()
 
 
 @router.get("/", response_model=list[TransactionOut])
 def get_transactions(
-    id_user: int,
     begin_date: date | None = None,
     end_date: date | None = None,
     tr_type: str | None = Query(None, pattern="^(income|expense)$"),
     primary: str | None = None,
     secondary: str | None = None,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
@@ -95,13 +96,13 @@ def get_transactions(
 
 @router.get("/summary/")
 def get_summary(
-    id_user: int,
     to_currency: str,
     tr_type: str = Query(..., pattern="^(income|expense)$"),
     begin_date: date | None = None,
     end_date: date | None = None,
     primary: str | None = None,
     secondary: str | None = None,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
@@ -131,13 +132,14 @@ def edit_transaction(
     id_tr: int,
     new_tr: TransactionIn,
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """
     Edits an existing transaction.
     """
     try:
-        job_id = transaction_service.edit_transaction(uow, id_tr, new_tr)
+        job_id = transaction_service.edit_transaction(uow, id_tr, new_tr, id_user)
 
         if wait_response:
             status, _ = check_status(job_id)
@@ -145,7 +147,9 @@ def edit_transaction(
             if status == COMPLETED_CODE:
                 return {"message": "Transaction edited successfully."}
             elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
+                raise InternalServerErrorException(
+                    f"Internal server error - job_status:{status} ",
+                )
 
         else:
             return job_id
@@ -154,23 +158,24 @@ def edit_transaction(
         raise TransactionNotFoundException()
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
+    except OperationNotPermittedError:
+        raise ForbiddenException()
     except ServiceError:
         raise BadRequestException()
-    except Exception:
-        raise InternalServerErrorException()
 
 
 @router.delete("/{id_tr}", status_code=204, response_model=None)
 def delete_transaction(
     id_tr: int,
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """
     Deletes a transaction.
     """
     try:
-        job_id = transaction_service.delete_transaction(uow, id_tr)
+        job_id = transaction_service.delete_transaction(uow, id_tr, id_user)
 
         if wait_response:
             status, _ = check_status(job_id)
@@ -178,14 +183,16 @@ def delete_transaction(
             if status == COMPLETED_CODE:
                 return {"message": "Transaction deleted successfully."}
             elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
+                raise InternalServerErrorException(
+                    f"Internal server error - job_status:{status} ",
+                )
 
         else:
             return job_id
 
     except ServiceTransactionNotFoundError:
         raise TransactionNotFoundException()
+    except OperationNotPermittedError:
+        raise ForbiddenException()
     except ServiceError:
         raise BadRequestException()
-    except Exception:
-        raise InternalServerErrorException()

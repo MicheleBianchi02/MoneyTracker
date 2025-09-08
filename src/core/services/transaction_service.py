@@ -31,12 +31,16 @@ class TransactionService:
     def add_transaction(
         self,
         unit_of_work: AbstractUnitOfWork,
+        id_user: int,
         transaction_list: list[TransactionIn] | TransactionIn,
     ) -> str:
         """Add transaction to the database.
 
+        All transaction will be added to the user with the given id.
+
         Parameters
         ----------
+            - id_user (int) : id of the user adding those transactions.
             - transaction_list (list or TransactionIn): List containing all the transaction
                 that need to saved in the database. The argument can also be a single
                 TransactionIn.
@@ -58,17 +62,27 @@ class TransactionService:
 
         logger.info(f"Adding {len(list(transaction_list))} transactions to the database")
 
+        # TODO: Add check on the currency
+
         try:
             job_id = str(uuid.uuid4())
 
             with unit_of_work as uow:
+                try:
+                    uow.user.validate_id_user(id_user)
+                except EntityNotFoundError as e:
+                    logger.error(f"{str(e)}")
+                    raise ServiceUserNotFoundError(
+                        f"The provided id_user:{id_user} is not present in the database.",
+                    ) from e
+
                 date_list = []
                 valid_tr_list = []
                 for tr in transaction_list:
                     date_list.append(tr.tr_date)
 
                     id_cat = uow.category.get_id(
-                        tr.id_user,
+                        id_user,
                         tr.tr_date.year,
                         tr.tr_type,
                         tr.primary,
@@ -76,14 +90,6 @@ class TransactionService:
                     )
 
                     if id_cat is None:
-                        try:
-                            uow.user.validate_id_user(tr.id_user)
-                        except EntityNotFoundError as e:
-                            logger.error(f"{str(e)}")
-                            raise ServiceUserNotFoundError(
-                                f"The provided id_user:{tr.id_user} is not present in the database.",
-                            ) from e
-
                         raise ServiceCategoryNotFoundError(
                             message="Category not present in the database.",
                             details={
@@ -100,12 +106,12 @@ class TransactionService:
 
             job_manager.add_job(job_id)
 
-            args = (exc_rates, valid_tr_list)
+            args = (exc_rates, id_user, valid_tr_list)
             task_queue.put((ADD_TR_TASK_NAME, job_id, args), block=True)
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -319,7 +325,7 @@ class TransactionService:
                 logger.exception(str(e))
                 raise ServiceError("An unexpected system error occurred.") from e
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -328,6 +334,7 @@ class TransactionService:
         uow: AbstractUnitOfWork,
         id_tr: int,
         new_tr: TransactionIn,
+        id_user: int,
     ) -> str:
         """Edit a transaction.
 
@@ -348,6 +355,8 @@ class TransactionService:
                 Attention: The new id_category is found using the id_user, tr_date,
                 primary, secondary inside the new_tr. If those parameter are inconsitend
                 the wrong id_category may be returned.
+            - id_user (int) : id of the user (used to check if the id_tr pertain to
+                the given user).
 
         Returns
         -------
@@ -360,6 +369,8 @@ class TransactionService:
                 present in the database.
             - ServiceCategoryNotFoundError: If the new category is not present in
                 the database.
+            - OperationNotPermittedError: If the transaction with id = id_tr doesn't
+                have the given id_user.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
@@ -376,13 +387,19 @@ class TransactionService:
                         """The transaction with the given id is not present in the database."""
                     )
 
+                if tr.id_user != id_user:
+                    logger.error(
+                        f"The transaction with id:{id_tr} doesn't pertain to the user with id_user:{id_user}"
+                    )
+                    raise OperationNotPermittedError("The transaction doesn't pertain to the user")
+
                 if tr.tr_type != new_tr.tr_type:
                     logger.error("Cannot change the transaction type")
                     raise OperationNotPermittedError("Cannot change the transaction type")
 
                 # if the category parameter didn't change, the old id is returned
                 new_id_cat = uow.category.get_id(
-                    id_user=new_tr.id_user,
+                    id_user=id_user,
                     year=new_tr.tr_date.year,
                     cat_type=new_tr.tr_type,
                     primary=new_tr.primary,
@@ -410,16 +427,18 @@ class TransactionService:
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int) -> str:
+    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int, id_user: int) -> str:
         """Delete a transaction from the database.
 
         Parameters
         ----------
-            id_tr (int) : id of the transaction to be deleted.
+            - id_tr (int) : id of the transaction to be deleted.
+            - id_user (int) : id of the user (used to check if the id_tr pertain to
+                the given user).
 
         Returns
         -------
@@ -430,6 +449,8 @@ class TransactionService:
         ------
             - ServiceTransactionNotFoundError: When the transactio with the given id is not
                 present in the database.
+            - OperationNotPermittedError: If the transaction with id = id_tr doesn't
+                have the given id_user.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
@@ -440,6 +461,10 @@ class TransactionService:
 
             with uow:
                 tr = uow.transaction.get_by_id_tr(id_tr)
+
+            if tr.id_user != id_user:
+                logger.error("The transaction doesn't pertain to the user")
+                raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
             if tr is None:
                 logger.error(f"Transaction not found with id_tr:{id_tr}")
@@ -453,7 +478,7 @@ class TransactionService:
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 

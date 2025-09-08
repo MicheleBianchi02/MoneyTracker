@@ -15,7 +15,7 @@ class CategoryRepository(AbstractCategoryRepository):
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
-    def add(self, cat_list: list[CategoryIn] | CategoryIn) -> None:
+    def add(self, id_user: int, cat_list: list[CategoryIn] | CategoryIn) -> None:
         if not isinstance(cat_list, list):
             # Need this because if only a category is passed (not a list), in the
             # for we would get an error since Category is not an iteratable.
@@ -39,7 +39,7 @@ class CategoryRepository(AbstractCategoryRepository):
                 # First we need to check if the primary is already present in the
                 # database
                 id_prim = self.get_id(
-                    cat.id_user,
+                    id_user,
                     cat.year,
                     cat.category_type,
                     cat.primary,
@@ -49,7 +49,7 @@ class CategoryRepository(AbstractCategoryRepository):
                 if id_prim is None:
                     # add primary if not exist in the database
                     parameters = (
-                        cat.id_user,
+                        id_user,
                         cat.year,
                         cat.primary,
                         None,
@@ -65,7 +65,7 @@ class CategoryRepository(AbstractCategoryRepository):
                         raise InvalidParameterError("income can't have secondaries.")
 
                     id_sec = self.get_id(
-                        cat.id_user,
+                        id_user,
                         cat.year,
                         cat.category_type,
                         cat.primary,
@@ -75,7 +75,7 @@ class CategoryRepository(AbstractCategoryRepository):
                     if id_sec is None:
                         # add secondary
                         parameters = (
-                            cat.id_user,
+                            id_user,
                             cat.year,
                             cat.secondary,
                             id_prim,
@@ -485,11 +485,12 @@ class CategoryRepository(AbstractCategoryRepository):
                 f"Error while deleting category with: id_cat = {id_cat}, ",
             ) from e
 
-    def validate_id_cat(self, id_cat: int) -> None:
+    def validate_id_cat(self, id_cat: int) -> int | None:
         cursor = self._connection.cursor()
 
         sql = """
-            SELECT 1
+            SELECT 
+                id_user
             FROM
                 categories
             WHERE
@@ -500,7 +501,8 @@ class CategoryRepository(AbstractCategoryRepository):
 
         cat_get = cursor.execute(sql, parameters).fetchone()
         cursor.close()
-        # None is returned if nothing is found
 
         if cat_get is None:
-            raise EntityNotFoundError("category", f"id_tr:{id_cat}")
+            return None
+
+        return cat_get[0]

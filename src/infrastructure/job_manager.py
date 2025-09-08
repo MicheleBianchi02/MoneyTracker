@@ -8,7 +8,7 @@ FAILED_CODE = "FAILED"
 UNKNOWN_CODE = "UNKNOWN"
 
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class JobStatusManager:
@@ -64,8 +64,10 @@ class JobStatusManager:
 job_manager = JobStatusManager()
 
 
-def check_status(job_id: str, time_interval: int = 0.07) -> tuple[str, dict]:
+def check_status(job_id: str) -> tuple[str, dict]:
     """Wait until the job is finished"""
+
+    time_interval = 0.01  # 10 ms
 
     # The first time an Unknown code is returned, it is ignored. Can happen when the
     # job_id is not inserted yet in the dictionary. This should not happen anyway
@@ -94,3 +96,5 @@ def check_status(job_id: str, time_interval: int = 0.07) -> tuple[str, dict]:
             else:
                 first_time = False
                 continue
+
+        time_interval += 0.01

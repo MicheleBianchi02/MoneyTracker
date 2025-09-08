@@ -18,12 +18,14 @@ class AbstractTransactionRepository(ABC):
     """
 
     @abstractmethod
-    def add(self, tr_list: list[tuple[int, TransactionIn]]) -> None:
-        """
-        Add transaction to the database.
+    def add(self, id_user: int, tr_list: list[tuple[int, TransactionIn]]) -> None:
+        """Add transaction to the database.
+
+        All the trensactions will be added to the user with the given id_user.
 
         Parameters
         ----------
+            - id_user (int) : id of the user for which the transactions will be added.
             - tr_list (list) : List containing tuples that have as first argument
                 the id_category of the transaction's category, and as second
                 argument the TransactionIn instance of the transaction to be

@@ -74,7 +74,12 @@ class UserService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def authenticate(self, uow: AbstractUnitOfWork, username: str, password: str) -> bool:
+    def authenticate(
+        self,
+        uow: AbstractUnitOfWork,
+        username: str,
+        password: str,
+    ) -> User | None:
         """Authenticate a user.
 
         Parameters
@@ -84,7 +89,7 @@ class UserService:
 
         Returns
         -------
-            A bool value whether the user has been authenticated or not
+            A User instance if the user is authenticated. If not, None is returned.
 
         Raises
         ------
@@ -97,9 +102,10 @@ class UserService:
                 user_list = uow.user.get(username)
 
                 if not user_list:
-                    return False
+                    return None
 
-                stored_hash = user_list[0].password
+                user = user_list[0]
+                stored_hash = user.password
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -109,10 +115,10 @@ class UserService:
             ph = PasswordHasher()
             ph.verify(stored_hash, password)
 
-            return True
+            return user
 
         except Exception:
-            return False
+            return None
 
     def get(self, uow: AbstractUnitOfWork, username: str | None) -> list[User]:
         """Get User with the given username.
