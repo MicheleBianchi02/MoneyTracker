@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Depends
 
-from src.core.domain.user import User
+from src.api.dependencies import get_id_user
+from src.core.domain.user import UserDeleteConfirmation, UserEdit, UserIn, UserOut
 from src.core.exceptions import (
-    BadRequestException,
     DuplicateUserException,
     InternalServerErrorException,
+    OperationNotPermittedError,
     ServiceError,
     ServiceUserNotFoundError,
     UnauthorizedException,
@@ -20,17 +21,16 @@ router = APIRouter(prefix="/users", tags=["Users"])
 user_service = UserService()
 
 
-@router.post("/", status_code=201, response_model=dict)
+@router.post("/", status_code=201, response_model=dict[str, str | int])
 def add_user(
-    username: str = Body(...),
-    password: str = Body(...),
+    user: UserIn,
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
     Adds a new user.
     """
     try:
-        job_id = user_service.add(uow, username, password)
+        job_id = user_service.add(uow, user.username, user.password)
 
         status, result = check_status(job_id)
 
@@ -44,33 +44,10 @@ def add_user(
     except UsernameAlreadyPresentError:
         raise DuplicateUserException()
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
 
 
-@router.post("/authenticate/", response_model=dict)
-def authenticate_user(
-    username: str = Body(...),
-    password: str = Body(...),
-    uow: AbstractUnitOfWork = Depends(get_uow),
-):
-    """
-    Authenticates a user.
-    """
-    try:
-        if user_service.authenticate(uow, username, password):
-            return {"status": "authenticated"}
-        else:
-            raise UnauthorizedException("Invalid credentials")
-
-    except ServiceError:
-        raise BadRequestException()
-    except Exception:
-        raise InternalServerErrorException()
-
-
-@router.get("/", response_model=list[User])
+@router.get("/", response_model=list[UserOut])
 def get_users(username: str | None = None, uow: AbstractUnitOfWork = Depends(get_uow)):
     """
     Retrieves a list of users.
@@ -78,18 +55,26 @@ def get_users(username: str | None = None, uow: AbstractUnitOfWork = Depends(get
     try:
         return user_service.get(uow, username)
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
 
 
 @router.put("/", status_code=204)
-def edit_user(new_user: User, uow: AbstractUnitOfWork = Depends(get_uow)):
+def edit_user(
+    user: UserEdit,
+    id_user: int = Depends(get_id_user),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
     """
     Edits an existing user.
     """
     try:
-        job_id = user_service.edit(uow, new_user)
+        job_id = user_service.edit(
+            uow,
+            id_user,
+            user.new_username,
+            user.new_password,
+            user.old_password,
+        )
 
         status, result = check_status(job_id)
 
@@ -98,23 +83,27 @@ def edit_user(new_user: User, uow: AbstractUnitOfWork = Depends(get_uow)):
         elif status == FAILED_CODE or status == UNKNOWN_CODE:
             raise InternalServerErrorException()
 
+    except OperationNotPermittedError:
+        raise UnauthorizedException()
     except UsernameAlreadyPresentError:
         raise DuplicateUserException()
     except ServiceUserNotFoundError:
         raise UserNotFoundException()
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
 
 
-@router.delete("/{id_user}", status_code=204)
-def delete_user(id_user: int, uow: AbstractUnitOfWork = Depends(get_uow)):
+@router.delete("/", status_code=204)
+def delete_user(
+    user: UserDeleteConfirmation,
+    id_user: int = Depends(get_id_user),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
     """
     Deletes a user.
     """
     try:
-        job_id = user_service.delete(uow, id_user)
+        job_id = user_service.delete(uow, id_user, user.current_password)
 
         status, result = check_status(job_id)
 
@@ -123,9 +112,9 @@ def delete_user(id_user: int, uow: AbstractUnitOfWork = Depends(get_uow)):
         elif status == FAILED_CODE or status == UNKNOWN_CODE:
             raise InternalServerErrorException()
 
+    except OperationNotPermittedError:
+        raise UnauthorizedException()
     except ServiceUserNotFoundError:
         raise UserNotFoundException()
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()

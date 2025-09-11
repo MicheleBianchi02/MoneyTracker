@@ -211,6 +211,8 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     args = (exc_rates,)
                     task_queue.put((EDIT_EXC_RATE_TASK_NAME, job_id, args), block=True)
 
+        logger.info("Exchange rate's update terminated successfully")
+
     except (RepositoryError, Exception) as e:
         logger.exception(str(e))
         raise ServiceError("an unexpected system error occurred.") from e
@@ -367,6 +369,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                     args = (exc_rates,)
                     task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
+
+        logger.info("Adding exchange rate's operation terminated successfully")
 
     except (RepositoryError, Exception) as e:
         logger.exception(str(e))

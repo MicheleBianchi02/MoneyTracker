@@ -5,6 +5,7 @@ from jwt.exceptions import InvalidTokenError
 
 from src.api import security
 from src.core.exceptions import UnauthorizedException
+from src.infrastructure.dependencies import manage_uow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -18,11 +19,20 @@ def get_id_user(token: str = Depends(oauth2_scheme)) -> int:
         # jwt encode it as a string
         id_user = int(id_user)
 
-        # TODO: Here add a check if the id_user exist in the database such that the
-        # token is not used if the user is deleted
+        # used to check that the user really exist. Otherwise, if we delete the
+        # user, then he will have a token with a non existing id_user.
+
+        # For better performance we can save in a list all the available ids at
+        # startup and then edit it and the db when deleting a user. At the moment it
+        # is not needed since the time required is well below the ms.
+        with manage_uow() as uow:
+            with uow:
+                user = uow.user.get_by_id(id_user)
+
+        if user is None:
+            raise UnauthorizedException()
 
         return id_user
 
-    except InvalidTokenError as e:
-        print(str(e))
+    except InvalidTokenError:
         raise UnauthorizedException()

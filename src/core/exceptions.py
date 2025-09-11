@@ -1,7 +1,3 @@
-# TODO: Use a base class for the entire application instead of normal Exception
-# (e.g. inside RepositoryError)
-
-
 # --- Repository Errors ---
 
 
@@ -15,7 +11,7 @@ class EntityNotFoundError(RepositoryError):
     """Raised when a specific database entity is not found when it was expected to exist."""
 
     def __init__(self, entity_name: str, parameter: int | float | bool | str):
-        super().__init__(f"{entity_name} with parameter {parameter} not found.")
+        super().__init__(f"{entity_name} with parameter {parameter} not found")
 
 
 class DuplicateEntityError(RepositoryError):
@@ -54,6 +50,12 @@ class ServiceError(Exception):
 class OperationNotPermittedError(ServiceError):
     """Raised when a user is not permitted to perform an action (e.g., deleting a primary
     category with children)."""
+
+    pass
+
+
+class ServiceInvalidCurrencyError(ServiceError):
+    "Raised when an invalid currency code is passed to a service,"
 
     pass
 
@@ -146,9 +148,21 @@ class BadRequestException(AppException):
         super().__init__(400, message, "BAD_REQUEST")
 
 
-class TransactionUseCategoryException(AppException):
+class TransactionUseCategoryException(BadRequestException):
+    """Used when trying to delete a category that has some transactions relative
+    to it."""
+
     def __init__(self):
-        super().__init__(400, "Transaction uses that category", "CATEGORY_IN_USE")
+        super().__init__("Transaction uses that category")
+        self.code = "CATEGORY_IN_USE"
+
+
+class InvalidCurrencyException(BadRequestException):
+    """Raised when a currency code is not valid."""
+
+    def __init__(self):
+        super().__init__("Currency is not valid")
+        self.code = "INVALID_CURRENCY"
 
 
 class UnauthorizedException(AppException):

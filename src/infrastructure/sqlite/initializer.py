@@ -162,9 +162,6 @@ def _init_categories(connection: sqlite3.Connection) -> None:
 def _init_transactions(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
 
-    # TODO: WHEN DELETING A CATEGORY THE TRANSACTIONS SHOULD BE CONVERTED TO THE
-    # NEW CREATED "DELETED" CATEGORY.
-
     # TODO: THE YEAR (IN tr_date) OF THE TRANSACTION SHOULD MATCH THE YEAR OF THE
     # id_category CONSIDERED. THE SAME IS TRUE FOR THE id_user
     # EVALUATE IF IT IS NECESSARY TO ADD A CONTROL CHECK BEFORE ADDING THE TRANSACTION

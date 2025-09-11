@@ -68,13 +68,13 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 
 
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     logger.info("Backend API starting up.")
     startup()
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+def shutdown_event():
     shutdown()
     logger.info("Application shutdown")
 
@@ -86,7 +86,7 @@ app.include_router(settings.router)
 
 
 @app.post("/token")
-async def login_for_access_token(
+def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> Token:

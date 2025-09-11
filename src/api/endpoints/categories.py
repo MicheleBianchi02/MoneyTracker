@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 
 from src.api.dependencies import get_id_user
@@ -28,7 +30,7 @@ category_service = CategoryService()
 
 @router.post("/", status_code=201, response_model=None)
 def add_category(
-    category: list[CategoryIn] | CategoryIn,
+    category: list[CategoryIn],
     wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
@@ -52,20 +54,20 @@ def add_category(
         else:
             return job_id
 
-    except InvalidCategoryError as e:
-        raise BadRequestException(str(e))
+    except InvalidCategoryError:
+        raise BadRequestException()
     except ServiceUserNotFoundError:
         raise UserNotFoundException()
     except ServiceDuplicateCategoryError:
         raise DuplicateCategoryException()
-    except ServiceError as e:
-        raise BadRequestException(str(e))
+    except ServiceError:
+        raise InternalServerErrorException()
 
 
 @router.get("/primary/", response_model=list[CategoryOut])
 def get_primary_categories(
     year: int | None = None,
-    cat_type: str | None = None,
+    cat_type: Literal["income", "expense"] | None = None,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -74,10 +76,8 @@ def get_primary_categories(
     """
     try:
         return category_service.get_primary_list(uow, id_user, year, cat_type)
-    except ServiceError as e:
-        raise BadRequestException(str(e))
-    except Exception:
-        raise InternalServerErrorException()
+    except ServiceError:
+        raise InternalServerErrorException
 
 
 @router.get("/secondary/", response_model=list[CategoryOut])
@@ -92,16 +92,14 @@ def get_secondary_categories(
     """
     try:
         return category_service.get_secondary_list(uow, id_user, year, primary)
-    except ServiceError as e:
-        raise BadRequestException(str(e))
-    except Exception:
+    except ServiceError:
         raise InternalServerErrorException()
 
 
 @router.get("/", response_model=list[CategoryOut])
 def get_all_categories(
     year: int | None = None,
-    cat_type: str | None = None,
+    cat_type: Literal["income", "expense"] | None = None,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -110,9 +108,7 @@ def get_all_categories(
     """
     try:
         return category_service.get(uow, id_user, year, cat_type)
-    except ServiceError as e:
-        raise BadRequestException(str(e))
-    except Exception:
+    except ServiceError:
         raise InternalServerErrorException()
 
 
@@ -146,8 +142,8 @@ def edit_category(
         raise CategoryNotFoundException()
     except OperationNotPermittedError:
         raise ForbiddenException()
-    except ServiceError as e:
-        raise BadRequestException(str(e))
+    except ServiceError:
+        raise InternalServerErrorException()
 
 
 @router.delete("/{id_cat}", status_code=204, response_model=None)
@@ -187,5 +183,5 @@ def delete_category(
         raise ForbiddenException()
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
-    except ServiceError as e:
-        raise BadRequestException(str(e))
+    except ServiceError:
+        raise InternalServerErrorException()

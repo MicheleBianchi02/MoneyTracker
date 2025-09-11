@@ -1,11 +1,11 @@
 import sqlite3
 
-from src.core.domain.user import User
-from src.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
+from src.core.domain.user import UserOut
+from src.core.exceptions import DuplicateEntityError, RepositoryError
 from src.core.repositories.abstract_user_repository import AbstractUserRepository
 
 # NOTE: This part save the password as plain text, meaning that it is needed
-# a script for hashing the password in a more abstract layer of the app.
+# a script for hashing the password in a more abstract layer of the app (service).
 
 
 class UserRepository(AbstractUserRepository):
@@ -41,7 +41,7 @@ class UserRepository(AbstractUserRepository):
 
             raise RepositoryError("Error while adding users to the database.") from e
 
-    def get(self, username: str | None) -> list[User]:
+    def get(self, username: str | None) -> list[UserOut]:
         cursor = self._connection.cursor()
 
         sql = """
@@ -67,7 +67,7 @@ class UserRepository(AbstractUserRepository):
 
             user_list = []
             for user_ret in user_ret_list:
-                user = User(
+                user = UserOut(
                     id=user_ret[0],
                     username=user_ret[1],
                     password=user_ret[2],
@@ -81,7 +81,7 @@ class UserRepository(AbstractUserRepository):
         except sqlite3.DatabaseError as e:
             raise RepositoryError(f"Error while getting user with: username:{username}. ") from e
 
-    def edit(self, new_user: User) -> None:
+    def edit(self, id_user: int, username: str, password: str) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -93,9 +93,7 @@ class UserRepository(AbstractUserRepository):
             id_user = ?
         """
 
-        parameters = (new_user.username, new_user.password, new_user.id)
-
-        self.validate_id_user(new_user.id)
+        parameters = (username, password, id_user)
 
         try:
             cursor.execute(sql, parameters)
@@ -104,11 +102,14 @@ class UserRepository(AbstractUserRepository):
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
                 raise DuplicateEntityError(
-                    f"Unique constrainnt error on username:{new_user.username}"
+                    f"Unique constrainnt error on username:{username}"
                 ) from e
 
             raise RepositoryError(
-                f"Error while editing User: new_user:{new_user}. ",
+                f"Error while editing User: "
+                f"-username:{username} "
+                f"-password:{password} "
+                f"-id_user:{id_user} "
             ) from e
 
     def delete(self, id_user: int) -> None:
@@ -122,8 +123,6 @@ class UserRepository(AbstractUserRepository):
 
         parameter = (id_user,)
 
-        self.validate_id_user(id_user)
-
         try:
             cursor.execute(sql, parameter)
             cursor.close()
@@ -133,20 +132,37 @@ class UserRepository(AbstractUserRepository):
                 f"Error while deleting User from database with: id_user:{id_user}",
             ) from e
 
-    def validate_id_user(self, id_user: int) -> None:
+    def get_by_id(self, id_user: int) -> UserOut | None:
         cursor = self._connection.cursor()
 
         sql = """
-            SELECT 1
-            FROM
+            SELECT
+                username,
+                password
+            FROM 
                 users
             WHERE
-                id_user = ?;
+                id_user = ?
         """
 
         parameters = (id_user,)
 
-        user_get = cursor.execute(sql, parameters).fetchone()
-        cursor.close()
-        if user_get is None:
-            raise EntityNotFoundError("user", f"id_user:{id_user}")
+        try:
+            cursor.execute(sql, parameters)
+
+            user = cursor.fetchone()
+
+            if user is None:
+                return None
+
+            else:
+                return UserOut(
+                    id=id_user,
+                    username=user[0],
+                    password=user[1],
+                )
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                f"Error while getting User by id: id_user:{id_user}. ",
+            ) from e

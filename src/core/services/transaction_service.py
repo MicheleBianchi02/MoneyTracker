@@ -14,15 +14,28 @@ from src.core.exceptions import (
     RepositoryError,
     ServiceCategoryNotFoundError,
     ServiceError,
+    ServiceExchangeRateNotFoundError,
+    ServiceInvalidCurrencyError,
     ServiceTransactionNotFoundError,
     ServiceUserNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from src.core.services.exc_rate_service import exc_rate_service
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.job_manager import job_manager
+from src.infrastructure.job_manager import (
+    FAILED_CODE,
+    UNKNOWN_CODE,
+    check_status,
+    job_manager,
+)
 from src.infrastructure.task_queue import task_queue
-from src.infrastructure.worker import ADD_TR_TASK_NAME, DELETE_TR_TASK_NAME, EDIT_TR_TASK_NAME
+from src.infrastructure.worker import (
+    ADD_EXC_RATE_TASK_NAME,
+    ADD_TR_TASK_NAME,
+    DELETE_TR_TASK_NAME,
+    EDIT_TR_TASK_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +65,21 @@ class TransactionService:
 
         Raises
         ------
+            - ServiceInvalidCurrencyError: If the currency of the new transaction is not
+                a valid currency.
             - ServiceUserNotFoundError: If the provided id_user is not present in the database.
             - ServiceCategoryNotFoundError: If the provided category is not present in the database.
             - ServiceError: If something went wrong with the repository or the service.
         """
 
+        # TODO: Add check on name and description. There are problems in string with
+        # this symbol \. Also, this -- is problematic for sqlite (sqlite3 might think
+        # about it). Do it also in edit and categories.
+
         if not isinstance(transaction_list, list):
             transaction_list = [transaction_list]
 
         logger.info(f"Adding {len(list(transaction_list))} transactions to the database")
-
-        # TODO: Add check on the currency
 
         try:
             job_id = str(uuid.uuid4())
@@ -79,6 +96,11 @@ class TransactionService:
                 date_list = []
                 valid_tr_list = []
                 for tr in transaction_list:
+                    tr.currency = tr.currency.upper()
+                    if not exc_rate_service.validate_currency(tr.currency):
+                        logger.error(f"{tr.currency} is not a valid currency")
+                        raise ServiceInvalidCurrencyError()
+
                     date_list.append(tr.tr_date)
 
                     id_cat = uow.category.get_id(
@@ -121,10 +143,16 @@ class TransactionService:
         id_user: int,
         begin_date: date | None,
         end_date: date | None,
+        to_currency: str | None = None,
         tr_type: str | None = None,
         primary: str | None = None,
         secondary: str | None = None,
-    ) -> list[TransactionOut]:
+        order: str | None = None,
+        order_dir: str = "ASC",
+        limit: int | None = None,
+        offset: int = 0,
+        name: str | None = None,
+    ) -> tuple[list[TransactionOut], bool]:
         """Get transaction from database in a given date range.
 
         The priority order is tr_type > primary > secondary. It means that if the
@@ -138,6 +166,9 @@ class TransactionService:
                 If None there is no inferior limit (all transaction up to end_date)
             - end_date (datetime.date or None) : ending date of the date range.
                 If None there is no superior limit (all transaction from starting date).
+            - to_currency (str or None) : currency into which convert all the transaction's
+                values. If None, the transactions will not be converted (returned
+                with their currency). The default value is None.
             - exp_type (str or None) : type of transaction, can be 'income' or 'expense'.
                 If None both type are returned. By default it is set to None,
             - primary (str or None) : primary of the required transactrions list. If None
@@ -147,34 +178,79 @@ class TransactionService:
                 all transactions (indipendently on the secondary) are returned. If
                 this argument is not None, tr_type should not be 'income'.
                 By default it's set to None.
-
+            - order (str or None) : ordering of the returned transaction list. Can be
+                one of the following values: 'name', 'date', 'value', 'currency',
+                'primary', 'secondary'. If None the order is chosen by the database.
+                May be needed when a limit and offset is needed with a user's required
+                order. The default value is None.
+            - order_dir (str) : Can be 'ASC' (for ascending) or 'DESC' (for descending).
+                If order is None, this parameter is ignored. The default value is 'ASC'.
+            - limit (int or None) : number of returned transactions. Can be used when the
+                transactions in the given range are a lot and a fast response is
+                required. If None, the full list of transactions is returned. By default
+                it's None.
+            - offset (int) : starting line number after the beginning. Can be used
+                when a limit is set and it is required to show the remaining
+                transactions. If limit is None, this parameter is ignored. The
+                defualt value is 0.
+            -name (str or None) : used to search transactions with name similar to
+                the given value. Only the starting character are compared (ie
+                if name = cine, names that will be returned are cinema, cine..., car is
+                not returned). If None, the comparison is not done. None is the
+                defualt value
 
         Returns
         -------
             List containing all the transaction (instances of TransactionOut). Note: even
             if there is only one transaction a list containing only one element is returned.
             If no transaction is found, an empty list is returned.
+            It is also returned a bool value wheter the converted values of the
+            transactions are updated or they exist in the database for that date. If
+            to_currency is None, True is returned.
 
         Raises
         ------
-            ServiceError: If something went wrong with the repository or the service.
-
+            - OperationNotPermittedError: If the order or order_dir parameter are
+                not allowed values.
+            - ServiceInvalidCurrencyError: If the given to_currency is not a valid
+                currency. If None, the exception is not raised.
+            - ServiceError: If something went wrong with the repository or the service.
         """
 
         logger.info("Getting transaction list")
 
+        if order is not None:
+            if order not in ["name", "date", "value", "currency", "primary", "secondary"]:
+                logger.error(f"{order} is not a valid order parameter")
+                raise OperationNotPermittedError()
+
+        if order_dir not in ["ASC", "DESC"]:
+            logger.error(f"{order_dir} is not a valid order_dir parameter")
+            raise OperationNotPermittedError()
+
+        if to_currency is not None:
+            to_currency = to_currency.upper()
+            if not exc_rate_service.validate_currency(to_currency):
+                logger.error(f"{to_currency} is not a valid currency")
+                raise ServiceInvalidCurrencyError()
         try:
             with uow:
-                tr_list = uow.transaction.get(
+                tr_list, is_valid = uow.transaction.get(
                     id_user,
                     begin_date,
                     end_date,
+                    to_currency,
                     tr_type,
                     primary,
                     secondary,
+                    order,
+                    order_dir,
+                    limit,
+                    offset,
+                    name,
                 )
 
-                return tr_list
+                return tr_list, is_valid
 
         except (RepositoryError, Exception) as e:
             logger.exception(str(e))
@@ -241,7 +317,7 @@ class TransactionService:
             #         },
             #     },
             #     prim_2: {
-            #         None: {
+            #         N/A: {
             #             "2021-01": 255.6,
             #             "2022-04": 686.6,
             #             "2024-05": 9023.5,
@@ -251,11 +327,21 @@ class TransactionService:
 
         Raises
         ------
+            - ServiceInvalidCurrencyError: If the given to_currency is not a valid
+                currency.
+            - ServiceExchangeRateNotFoundError: If an exchange rate has not been
+                found in the database.
             - ServiceError: If something went wrong with the repository or the service.
 
         """
 
         logger.info("Getting transaction summary")
+
+        if to_currency is not None:
+            to_currency = to_currency.upper()
+            if not exc_rate_service.validate_currency(to_currency):
+                logger.error(f"{to_currency} is not a valid currency")
+                raise ServiceInvalidCurrencyError()
 
         try:
             with uow:
@@ -273,22 +359,36 @@ class TransactionService:
 
         except EntityNotFoundError as e:
             # If an exchange rate is not found, try to add it
-            logger.error(f"{str(e)}. Adding missing exchange rates.")
+            logger.error(f"{str(e)} : Adding missing exchange rates.")
 
             try:
+                job_id = str(uuid.uuid4())
                 with uow:
-                    tr_list = uow.transaction.get(
-                        id_user,
-                        begin_date,
-                        end_date,
-                        tr_type,
-                        primary,
-                        secondary,
+                    tr_list, _ = uow.transaction.get(
+                        id_user=id_user,
+                        begin_date=begin_date,
+                        end_date=end_date,
+                        tr_type=tr_type,
+                        primary=primary,
+                        secondary=secondary,
                     )
 
                     date_list = [tr.tr_date for tr in tr_list]
 
-                    self._get_missing_exchange_rate(uow, date_list)
+                    exc_rates = self._get_missing_exchange_rate(uow, date_list)
+
+                    # add exchange rates using the worker
+                    job_manager.add_job(job_id)
+                    args = (exc_rates,)
+                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
+                    status, _ = check_status(job_id)
+                    if status == FAILED_CODE or status == UNKNOWN_CODE:
+                        logger.error(
+                            f"Service error - job_status:{status}, job_id:{job_id}",
+                        )
+                        raise ServiceError(
+                            f"Service error - job_status:{status}, job_id:{job_id}",
+                        )
 
                     summary, is_valid = uow.transaction.get_summary(
                         id_user,
@@ -304,7 +404,7 @@ class TransactionService:
 
             except EntityNotFoundError as e:
                 logger.error(f"{str(e)}")
-                raise ServiceError("An exchange rate is still not found") from e
+                raise ServiceExchangeRateNotFoundError("An exchange rate is still not found") from e
 
             except InvalidParameterError as e:
                 logger.error(
@@ -321,7 +421,7 @@ class TransactionService:
                     "An attempt was made to add an already existing exchange rate",
                 ) from e
 
-            except (RepositoryError, Exception) as e:
+            except RepositoryError as e:
                 logger.exception(str(e))
                 raise ServiceError("An unexpected system error occurred.") from e
 
@@ -365,6 +465,8 @@ class TransactionService:
 
         Raises
         ------
+            - ServiceInvalidCurrencyError: If the new currency is not a valid
+                currency.
             - ServiceTransactionNotFoundError: When the transactio with the given id is not
                 present in the database.
             - ServiceCategoryNotFoundError: If the new category is not present in
@@ -375,6 +477,10 @@ class TransactionService:
         """
 
         logger.info("Editing transaction")
+        new_tr.currency = new_tr.currency.upper()
+        if not exc_rate_service.validate_currency(new_tr.currency):
+            logger.error(f"{new_tr.currency} is not a valid currency")
+            raise ServiceInvalidCurrencyError()
 
         try:
             job_id = str(uuid.uuid4())
@@ -482,7 +588,11 @@ class TransactionService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def _get_missing_exchange_rate(self, uow: AbstractUnitOfWork, date_list: list[date]) -> None:
+    def _get_missing_exchange_rate(
+        self,
+        uow: AbstractUnitOfWork,
+        date_list: list[date],
+    ) -> list[ExchangeRate]:
         """Get missing exchange rates based on the given date_list"""
 
         # This function will work only if in the database we always add the same number
@@ -493,9 +603,15 @@ class TransactionService:
 
         # When the application is first run, exchange rates from a given starting date
         # to the given date are added. This below get this first date. From there, we are
-        # shure that the exchange rates exist.
+        # sure that the exchange rates exist. If, for any reason, that date is not
+        # present in the datebase, we don't save any exchange rate (this should not
+        # happen since it can lead to some error).
         exc_starting_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
-        exc_starting_date = date.fromisoformat(exc_starting_date)
+        if exc_starting_date is None:
+            exc_starting_date = date(1, 1, 1)
+
+        else:
+            exc_starting_date = date.fromisoformat(exc_starting_date)
 
         date_to_check = set()  # set to remove duplicate
         for tr_date in date_list:
@@ -519,6 +635,7 @@ class TransactionService:
         missing_dates = uow.exchange_rate.get_missing_rates_dates(date_to_check)
 
         required_dates = set()  # set to remove duplicate
+        exc_rates = []
         if missing_dates:
             for exc_date in missing_dates:
                 year = exc_date.year
@@ -585,4 +702,4 @@ class TransactionService:
 
                             exc_rates.append(exc)
 
-            return exc_rates
+        return exc_rates

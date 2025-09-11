@@ -1,6 +1,8 @@
 from datetime import date
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from src.api.dependencies import get_id_user
 from src.core.domain.transaction import TransactionIn, TransactionOut
@@ -9,9 +11,12 @@ from src.core.exceptions import (
     CategoryNotFoundException,
     ForbiddenException,
     InternalServerErrorException,
+    InvalidCurrencyException,
     OperationNotPermittedError,
     ServiceCategoryNotFoundError,
     ServiceError,
+    ServiceExchangeRateNotFoundError,
+    ServiceInvalidCurrencyError,
     ServiceTransactionNotFoundError,
     ServiceUserNotFoundError,
     TransactionNotFoundException,
@@ -29,6 +34,16 @@ from src.infrastructure.job_manager import (
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 transaction_service = TransactionService()
+
+
+class TransactionResponse(BaseModel):
+    transactions: list[TransactionOut]
+    is_valid: bool
+
+
+class SummaryResponse(BaseModel):
+    summary: dict[str, dict[str, dict[str, float]]]
+    is_valid: bool
 
 
 @router.post("/", status_code=201, response_model=None)
@@ -57,6 +72,8 @@ def add_transaction(
         else:
             return job_id
 
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
     except ServiceUserNotFoundError:
         raise UserNotFoundException()
     except ServiceCategoryNotFoundError:
@@ -65,46 +82,64 @@ def add_transaction(
         raise BadRequestException()
 
 
-@router.get("/", response_model=list[TransactionOut])
+@router.get("/", response_model=TransactionResponse)
 def get_transactions(
     begin_date: date | None = None,
     end_date: date | None = None,
-    tr_type: str | None = Query(None, pattern="^(income|expense)$"),
+    to_currency: str | None = None,
+    tr_type: Literal["income", "expense"] | None = None,
     primary: str | None = None,
     secondary: str | None = None,
+    order: Literal["name", "date", "value", "currency", "primary", "secondary"] | None = None,
+    order_dir: Literal["ASC", "DESC"] = "ASC",
+    limit: int | None = None,
+    offset: int = 0,
+    name: str | None = None,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
-):
+) -> TransactionResponse:
     """
     Retrieves transactions based on specified filters.
     """
+
     try:
-        return transaction_service.get_transaction(
+        transactions, is_valid = transaction_service.get_transaction(
             uow,
             id_user,
             begin_date,
             end_date,
+            to_currency,
             tr_type,
             primary,
             secondary,
+            order,
+            order_dir,
+            limit,
+            offset,
+            name,
         )
-    except ServiceError:
+
+        return TransactionResponse(transactions=transactions, is_valid=is_valid)
+
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
+    except OperationNotPermittedError:
         raise BadRequestException()
-    except Exception:
+    except (ServiceError, Exception):
         raise InternalServerErrorException()
 
 
-@router.get("/summary/")
+@router.get("/summary/", response_model=SummaryResponse)
 def get_summary(
     to_currency: str,
-    tr_type: str = Query(..., pattern="^(income|expense)$"),
+    tr_type: Literal["income", "expense"],
     begin_date: date | None = None,
     end_date: date | None = None,
     primary: str | None = None,
     secondary: str | None = None,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
-):
+) -> SummaryResponse:
     """
     Retrieves a summary of transactions.
     """
@@ -119,11 +154,11 @@ def get_summary(
             primary,
             secondary,
         )
-        return {"summary": summary, "is_valid": is_valid}
+        return SummaryResponse(summary=summary, is_valid=is_valid)
 
-    except ServiceError:
-        raise BadRequestException()
-    except Exception:
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
+    except (ServiceError, ServiceExchangeRateNotFoundError, Exception):
         raise InternalServerErrorException()
 
 
@@ -154,6 +189,8 @@ def edit_transaction(
         else:
             return job_id
 
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
     except ServiceTransactionNotFoundError:
         raise TransactionNotFoundException()
     except ServiceCategoryNotFoundError:

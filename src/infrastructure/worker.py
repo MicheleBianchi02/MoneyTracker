@@ -78,10 +78,12 @@ def writer_worker() -> None:
 
                 elif task_name == EDIT_USER_TASK_NAME:
                     try:
-                        new_user = args[0]
+                        id_user = args[0]
+                        username = args[1]
+                        password = args[2]
 
                         with uow:
-                            uow.user.edit(new_user)
+                            uow.user.edit(id_user, username, password)
 
                         logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)

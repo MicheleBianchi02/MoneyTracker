@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.core.domain.user import User
+from src.core.domain.user import UserOut
 
 
 class AbstractUserRepository(ABC):
@@ -31,7 +31,7 @@ class AbstractUserRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get(self, username: str | None) -> list[User]:
+    def get(self, username: str | None) -> list[UserOut]:
         """Get User with the given username.
 
         Paramters
@@ -52,7 +52,7 @@ class AbstractUserRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def edit(self, new_user: User) -> None:
+    def edit(self, new_user: UserOut) -> None:
         """Edit a User present in the database.
 
         The only parameter that can be changed are:
@@ -73,8 +73,8 @@ class AbstractUserRepository(ABC):
         ------
             - DuplicateEntityError: If Unique constraint error occour (e.g. two user
                 user with the same username are inserted)
-            - EntityNotFounError: If the user with the given id_user is not in the db.
-            - RuntimeError: If something went wrong with the database
+            - ForeignKeyError: If the user with the given id_user is not in the db.
+            - RepositoryError: If something went wrong with the database
         """
 
         raise NotImplementedError
@@ -92,24 +92,25 @@ class AbstractUserRepository(ABC):
 
         Raises
         ------
-            - EntityNotFounError: If the user with the given id_user is not in the db.
-            - RuntimeError: If something went wrong with the database
+            RepositoryError: If something went wrong with the database
         """
 
         raise NotImplementedError
 
     @abstractmethod
-    def validate_id_user(self, id_user: int) -> None:
-        """Check if the user with the given id_user exist.
+    def get_by_id(self, id_user: int) -> UserOut | None:
+        """Return an instance of UserOut of the user with the given id
 
         Parameters
         ----------
-            id_user (int) : id of the user
+            id_user (int) : id of the User.
+
+        Returns
+        -------
+            An instance of UserOut if the user is found in the database. If no
+            user is present in the database with the given id_user, None is returned.
 
         Raises
         ------
-            EntityNotFoundError: If the user doesn't exists in the database
-
+            RepositoryError: If something went wrong with the database
         """
-
-        raise NotImplementedError

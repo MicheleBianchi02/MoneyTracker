@@ -50,10 +50,16 @@ class AbstractTransactionRepository(ABC):
         id_user: int,
         begin_date: date | None,
         end_date: date | None,
+        to_currency: str | None = None,
         tr_type: str | None = None,
         primary: str | None = None,
         secondary: str | None = None,
-    ) -> list[TransactionOut]:
+        order: str | None = None,
+        order_dir: str = "ASC",
+        limit: int | None = None,
+        offset: int = 0,
+        name: str | None = None,
+    ) -> tuple[list[TransactionOut], bool]:
         """Get transaction from database in a given date range.
 
         The priority order is tr_type > primary > secondary. It means that if the
@@ -67,6 +73,9 @@ class AbstractTransactionRepository(ABC):
                 If None there is no inferior limit (all transaction up to end_date)
             - end_date (datetime.date or None) : ending date of the date range.
                 If None there is no superior limit (all transaction from starting date).
+            - to_currency (str or None) : currency into which convert all the transaction's
+                values. If None, the transactions will not be converted (returned
+                with their currency). The default value is None.
             - exp_type (str or None) : type of transaction, can be 'income' or 'expense'.
                 If None both type are returned. By default it is set to None,
             - primary (str or None) : primary of the required transactrions list. If None
@@ -76,17 +85,39 @@ class AbstractTransactionRepository(ABC):
                 all transactions (indipendently on the secondary) are returned. If
                 this argument is not None, tr_type should not be 'income'.
                 By default it's set to None.
-
+            - order (str or None) : ordering of the returned transaction list. Can be
+                one of the following values: 'name', 'date', 'value', 'currency',
+                'primary', 'secondary'. If None the order is chosen by the database.
+                May be needed when a limit and offset is needed with a user's required
+                order. The default value is None.
+            - order_dir (str) : Can be 'ASC' (for ascending) or 'DESC' (for descending).
+                The default value is 'ASC'.
+            - limit (int or None) : number of returned transactions. Can be used when the
+                transactions in the given range are a lot and a fast response is
+                required. If None, the full list of transactions is returned. By default
+                it's None.
+            - offset (int) : starting line number after the beginning. Can be used
+                when a limit is set and it is required to show the remaining
+                transactions. The defualt value is 0.
+            -name (str or None) : used to search transactions with name similar to
+                the given value. Only the starting character are compared (ie
+                if name = cine, names that will be returned are cinema, cine..., car is
+                not returned). If None, the comparison is not done. None is the
+                defualt value
 
         Returns
         -------
             List containing all the transaction (instances of TransactionOut). Note: even
             if there is only one transaction a list containing only one element is returned.
             If no transaction is found, an empty list is returned.
+            It is also returned a bool value wheter the converted values of the
+            transactions are updated or they exist in the database for that date. If
+            to_currency is None, True is returned.
 
         Raises
         ------
-            RepositoryError: If something went wrong with the database
+            - InvalidParameterError: If the order or order_dir are not allowed values.
+            - RepositoryError: If something went wrong with the database.
 
         """
 

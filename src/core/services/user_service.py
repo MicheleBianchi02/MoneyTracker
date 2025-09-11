@@ -3,8 +3,9 @@ import uuid
 
 from argon2 import PasswordHasher
 
-from src.core.domain.user import User
+from src.core.domain.user import UserOut
 from src.core.exceptions import (
+    OperationNotPermittedError,
     RepositoryError,
     ServiceError,
     ServiceUserNotFoundError,
@@ -13,7 +14,7 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.infrastructure.job_manager import job_manager
 from src.infrastructure.task_queue import task_queue
-from src.infrastructure.worker import ADD_USER_TASK_NAME
+from src.infrastructure.worker import ADD_USER_TASK_NAME, DELETE_USER_TASK_NAME, EDIT_USER_TASK_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,14 @@ class UserService:
         job_id = str(uuid.uuid4())
 
         try:
-            ph = PasswordHasher()
-            hashed_password = ph.hash(password)
+            try:
+                ph = PasswordHasher()
+                hashed_password = ph.hash(password)
+            except Exception as e:
+                logger.exception(str(e))
+                raise ServiceError(
+                    "An unexpected error occurred while hashing the password."
+                ) from e
 
             with uow:
                 user_list = uow.user.get(None)
@@ -69,8 +76,7 @@ class UserService:
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
-            # This incude also error from the argon2 library
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -79,7 +85,7 @@ class UserService:
         uow: AbstractUnitOfWork,
         username: str,
         password: str,
-    ) -> User | None:
+    ) -> UserOut | None:
         """Authenticate a user.
 
         Parameters
@@ -107,7 +113,7 @@ class UserService:
                 user = user_list[0]
                 stored_hash = user.password
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -120,7 +126,7 @@ class UserService:
         except Exception:
             return None
 
-    def get(self, uow: AbstractUnitOfWork, username: str | None) -> list[User]:
+    def get(self, uow: AbstractUnitOfWork, username: str | None) -> list[UserOut]:
         """Get User with the given username.
 
         Paramters
@@ -144,11 +150,18 @@ class UserService:
             with uow:
                 return uow.user.get(username)
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def edit(self, uow: AbstractUnitOfWork, new_user: User) -> str:
+    def edit(
+        self,
+        uow: AbstractUnitOfWork,
+        id_user: int,
+        new_username: str | None,
+        new_password: str | None,
+        old_password: str | None,
+    ) -> str:
         """Edit a User present in the database.
 
         The only parameter that can be changed are:
@@ -156,12 +169,20 @@ class UserService:
         - password.
 
         id can't be changed.
+        To change the password, the old password is required.
+        To change the username, the old password is not required.
+
 
         Parameters
         ----------
-            - new_user (User) : User with the new updated values.
-                Important: The id of the input User should be the same of the old
-                one.
+            - id_user (int) : id of the user to be modified,
+            - new_username (str or None) : new username. If None, the username is
+                not modified,
+            - new_password (str or None) : new password of the user. If None, the
+                password is not modified,
+            - old_password (str) : current_password of the user. Can be None only if
+                editing the username. If the password is to be modified, this
+                parameter is required.
 
         Returns
         -------
@@ -170,6 +191,8 @@ class UserService:
 
         Raises
         ------
+            - OperationNotPermittedError: If the given old_password is not correct or
+                is not given (ie is None when trying to change the password).
             - UsernameAlreadyPresentError: If the new username is already in use.
             - ServiceUserNotFoundError: If the user with the given id_user is not in the db.
             - ServiceError: If something went wrong with the repository or the service.
@@ -179,50 +202,72 @@ class UserService:
         job_id = str(uuid.uuid4())
 
         try:
-            ph = PasswordHasher()
-            hashed_password = ph.hash(new_user.password)
-
-            new_user.password = hashed_password
-
             with uow:
-                user_list = uow.user.get(None)
+                user = uow.user.get_by_id(id_user)
 
-            id_exist = False
-            username_valid = False
-            for user in user_list:
-                if new_user.id == user.id:
-                    id_exist = True
-
-                if new_user.username == user.username:
-                    username_valid = True
-
-            if not id_exist:
-                logger.error(f"User with id: {new_user.id} not found")
+            if user is None:
+                logger.error(f"User with id:{id_user} not found")
                 raise ServiceUserNotFoundError(
                     "The user with the given id is not present in the database",
                 )
 
-            if not username_valid:
-                logger.error(f"Username: {new_user.username} already present in the database")
-                raise UsernameAlreadyPresentError("Username already in use")
+            if new_password is not None:
+                if old_password is None:
+                    logger.error(
+                        "Changing password without providing the old one is prohibited",
+                    )
+                    raise OperationNotPermittedError(
+                        "Changing password without providing the old one is prohibited",
+                    )
+
+                try:
+                    ph = PasswordHasher()
+                    ph.verify(user.password, old_password)
+                    password = ph.hash(new_password)
+
+                except Exception:
+                    logger.error(
+                        "The current password doesn't match the provided old_password",
+                    )
+                    raise OperationNotPermittedError(
+                        "The current password doesn't match the provided old_password",
+                    )
+            else:
+                password = user.password
+
+            if new_username is not None:
+                with uow:
+                    user_list = uow.user.get(None)
+
+                username_list = [user.username for user in user_list]
+
+                if new_username in username_list:
+                    logger.error(f"Username: {new_username} already present in the database")
+                    raise UsernameAlreadyPresentError("Username already in use")
+
+                username = new_username
+
+            else:
+                username = user.username
 
             job_manager.add_job(job_id)
 
-            args = (new_user,)
-            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
+            args = (id_user, username, password)
+            task_queue.put((EDIT_USER_TASK_NAME, job_id, args), block=True)
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_user: int) -> str:
-        """Delete a User from the database.
+    def delete(self, uow: AbstractUnitOfWork, id_user: int, current_password: str) -> str:
+        """Delete a User from the database if the given password is correct.
 
         Parameters
         ----------
-            id_user (int) : id of the User to be deleted.
+            - id_user (int) : id of the User to be deleted.
+            - current_password (str) : current password of the user.
 
         Returns
         -------
@@ -231,6 +276,8 @@ class UserService:
 
         Raises
         ------
+            - OperationNotPermitterError: If the provided password doesn't match the
+                one in the database.
             - ServiceUserNotFoundError: If the user with the given id_user is not in the db.
             - ServiceError: If something went wrong with the repository or the service.
         """
@@ -240,23 +287,33 @@ class UserService:
         job_id = str(uuid.uuid4())
         try:
             with uow:
-                user_list = uow.user.get(None)
+                user = uow.user.get_by_id(id_user)
 
-            id_list = [user.id for user in user_list]
-
-            if id_user not in id_list:
-                logger.error(f"User with id: {id_user} not found")
+            if user is None:
+                logger.error(f"User with id:{id_user} not found")
                 raise ServiceUserNotFoundError(
                     "The user with the given id is not present in the database",
+                )
+
+            try:
+                ph = PasswordHasher()
+                ph.verify(user.password, current_password)
+
+            except Exception:
+                logger.error(
+                    "The current password doesn't match the provided old_password",
+                )
+                raise OperationNotPermittedError(
+                    "The current password doesn't match the provided old_password",
                 )
 
             job_manager.add_job(job_id)
 
             args = (id_user,)
-            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
+            task_queue.put((DELETE_USER_TASK_NAME, job_id, args), block=True)
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

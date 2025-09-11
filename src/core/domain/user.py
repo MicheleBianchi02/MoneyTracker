@@ -1,29 +1,24 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class User:
+class UserIn(BaseModel):
     username: str
     password: str
-    id: int = 1  # set bu the database
 
-    def __eq__(self, other):
-        """Ignore the .id parameter when equating two User
 
-        Need this because the .id parameter is noramlly set automatically by the
-        database, meaning that is a priori unknown.
-        This is needed, for istance during testing.
-        """
+class UserOut(BaseModel):
+    id: int
+    username: str
+    password: str
 
-        if not isinstance(other, User):
-            raise NotImplementedError(
-                f"Equivalence between User and {type(other)} is not supported",
-            )
 
-        return (
-            self.username,
-            self.password,
-        ) == (
-            other.username,
-            other.password,
-        )
+# These two below are needed because uvicorn log the requests. And, if
+# the password is not inside the body of the request, it would get logged.
+class UserDeleteConfirmation(BaseModel):
+    current_password: str
+
+
+class UserEdit(BaseModel):
+    new_username: str | None = None
+    new_password: str | None = None
+    old_password: str | None = None

@@ -4,17 +4,21 @@ import uuid
 from src.core.domain.setting import Setting
 from src.core.exceptions import (
     CurrencyNotFoundError,
-    EntityNotFoundError,
     RepositoryError,
     ServiceDuplicateCurrencyError,
     ServiceError,
+    ServiceInvalidCurrencyError,
     ServiceSettingNotFoundError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from src.core.services.exc_rate_service import exc_rate_service
 from src.infrastructure.job_manager import job_manager
 from src.infrastructure.task_queue import task_queue
-from src.infrastructure.worker import ADD_SETTING_TASK_NAME
+from src.infrastructure.worker import (
+    ADD_CURRENCY_TASK_NAME,
+    ADD_SETTING_TASK_NAME,
+    DELETE_CURRENCY_TASK_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,7 @@ class UserSettingService:
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -108,7 +112,7 @@ class UserSettingService:
             with uow:
                 return uow.user_setting.get(id_user, setting_name)
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -136,6 +140,7 @@ class UserSettingService:
 
         Raises
         ------
+            - ServiceInvalidCurrencyError: If the provided currency code is not valid.
             - ServiceDuplicateCurrencyError: If trying to add an already present (for that
                 user) currency code.
             - ServiceError: If something went wrong with the repository or the service.
@@ -164,14 +169,19 @@ class UserSettingService:
                     f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
                 )
 
+            currency_code = currency_code.upper()
+            if not exc_rate_service.validate_currency(currency_code):
+                logger.error(f"{currency_code} is not a valid currency")
+                raise ServiceInvalidCurrencyError()
+
             job_manager.add_job(job_id)
 
             args = (id_user, currency_code, currency_symbol)
-            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
+            task_queue.put((ADD_CURRENCY_TASK_NAME, job_id, args), block=True)
 
             return job_id
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -205,9 +215,9 @@ class UserSettingService:
                 with uow:
                     return uow.user_setting.get_currency_list(id_user)
 
-            return ExchangeRateProvider().available_currencies_detailed
+            return exc_rate_service.available_currencies_detailed
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -238,29 +248,25 @@ class UserSettingService:
             with uow:
                 curr_list = uow.user_setting.get_currency_list(id_user)
 
-            if currency_code in curr_list:
+            currency_code = currency_code.upper()
+
+            if currency_code not in curr_list:
                 logger.error(
-                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                    f"The currency: {currency_code} is not present in the database "
+                    "for the user with id_user: {id_user}"
                 )
-                raise ServiceDuplicateCurrencyError(
-                    f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
+                raise CurrencyNotFoundError(
+                    f"The currency: {currency_code} is not present in the database "
+                    "for the user with id_user: {id_user}"
                 )
 
             job_manager.add_job(job_id)
 
             args = (id_user, currency_code)
-            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
+            task_queue.put((DELETE_CURRENCY_TASK_NAME, job_id, args), block=True)
 
             return job_id
 
-        except EntityNotFoundError as e:
-            logger.error(
-                f"Currency: {currency_code} is not present in the database for user with id: {id_user}"
-            )
-            raise CurrencyNotFoundError(
-                f"Currency: {currency_code} is not present in the database for user with id: {id_user}"
-            ) from e
-
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

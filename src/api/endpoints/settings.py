@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Body, Depends
 
+from src.api.dependencies import get_id_user
 from src.core.domain.setting import Setting
 from src.core.exceptions import (
     BadRequestException,
     CurrencyNotFoundError,
     DuplicateCurrencyException,
     InternalServerErrorException,
+    InvalidCurrencyException,
     ServiceDuplicateCurrencyError,
     ServiceError,
+    ServiceInvalidCurrencyError,
     ServiceSettingNotFoundError,
     SettingNotFoundException,
 )
@@ -22,10 +25,10 @@ setting_service = UserSettingService()
 
 @router.post("/", status_code=204)
 def add_or_update_setting(
-    id_user: int = Body(...),
     setting_name: str = Body(...),
     value: int | float | str | bool = Body(...),
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
@@ -49,33 +52,45 @@ def add_or_update_setting(
         raise SettingNotFoundException()
     except ServiceError:
         raise BadRequestException()
-    except Exception:
+
+
+@router.get("/default/", response_model=list[Setting])
+def get_default_settings(
+    setting_name: str | None = None,
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    """
+    Retrieves default settings.
+    """
+    try:
+        return setting_service.get(uow, None, setting_name)
+
+    except ServiceError:
         raise InternalServerErrorException()
 
 
 @router.get("/", response_model=list[Setting])
 def get_settings(
-    id_user: int | None = None,
     setting_name: str | None = None,
+    id_user=Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
-    Retrieves settings.
+    Retrieves user specific settings.
     """
     try:
         return setting_service.get(uow, id_user, setting_name)
+
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
 
 
 @router.post("/currencies/", status_code=204)
 def add_currency(
-    id_user: int = Body(...),
     currency_code: str = Body(...),
     currency_symbol: str | None = Body(None),
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
@@ -94,36 +109,52 @@ def add_currency(
         else:
             return job_id
 
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
     except ServiceDuplicateCurrencyError:
         raise DuplicateCurrencyException()
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
 
 
+@router.get("/currencies/available/", response_model=list[tuple[str, str | None]])
+def get_available_currencies(
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    """
+    Retrieves all available currencies.
+    """
+    try:
+        return setting_service.get_currency_list(uow, None)
+
+    except ServiceError:
+        raise BadRequestException()
+
+
 @router.get("/currencies/", response_model=list[tuple[str, str | None]])
-def get_currencies(id_user: int | None, uow: AbstractUnitOfWork = Depends(get_uow)):
+def get_currencies(
+    id_user: int = Depends(get_id_user),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
     """
     Retrieves all currencies for a user.
     """
     try:
         return setting_service.get_currency_list(uow, id_user)
+
     except ServiceError:
         raise BadRequestException()
-    except Exception:
-        raise InternalServerErrorException()
 
 
 @router.delete("/currencies/", status_code=204)
 def delete_currency(
-    id_user: int = Body(...),
-    currency_code: str = Body(...),
+    currency_code: str,
     wait_response: bool = True,
+    id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
-    Deletes a currency for a user.
+    Deletes a user currency.
     """
     try:
         job_id = setting_service.delete_currency(uow, id_user, currency_code)
@@ -140,6 +171,4 @@ def delete_currency(
     except CurrencyNotFoundError:
         raise BadRequestException()
     except ServiceError:
-        raise BadRequestException()
-    except Exception:
         raise InternalServerErrorException()
