@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
@@ -5,6 +6,17 @@ from pydantic import BaseModel
 
 # from src.core.exceptions import InvalidCurrencyException
 # from src.core.services.exc_rate_service import exc_rate_service
+
+
+@dataclass
+class TransactionRepoIn:
+    id_user: int
+    id_cat: int
+    tr_date: date
+    name: str
+    value: float
+    currency: str
+    description: str
 
 
 class TransactionIn(BaseModel):

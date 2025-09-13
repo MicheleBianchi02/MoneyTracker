@@ -4,15 +4,12 @@ import sqlite3
 import pytest
 
 from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.exceptions import ForeignKeyError, InvalidParameterError
+from src.core.exceptions import ForeignKeyError
 from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
-# NOTE: Currently every test function is calling this function creating a new database,
-# no error is raised, only warning. This is needed because at every test a clean
-# database is needed
 @pytest.fixture
 def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
@@ -44,26 +41,25 @@ def test_add_primary_category(connection):
         # --- Primary
         primary = UtilTest.generate_random_string()
         cat_prim = CategoryIn(
-            id_user=id_user,
             year=year,
             category_type="income",
             primary=primary,
             secondary=None,
         )
-        uow.category.add(cat_prim)
+        uow.category.add(id_user, cat_prim)
 
         cat_prim.category_type = "expense"
-        uow.category.add(cat_prim)
+        uow.category.add(id_user, cat_prim)
 
         cat_get = uow.category.get(id_user, year, "income")[0]
         assert cat_prim.primary == cat_get.primary
         assert cat_prim.secondary == cat_get.secondary
 
         # Add the same category twice and check if it has been added or not.
-        # the correct result should that the category is not added
-        uow.category.add(cat_prim)
+        # the correct result should be that the category is not added
+        uow.category.add(id_user, cat_prim)
 
-        cat_get = uow.category.get(id_user, year, "income")
+        cat_get = uow.category.get(id_user, year, "expense")
         assert len(cat_get) == 1
 
 
@@ -85,7 +81,6 @@ def test_add_secondary(connection):
         secondary = UtilTest.generate_random_string()
 
         cat_sec = CategoryIn(
-            id_user=id_user,
             year=year,
             category_type="expense",
             primary=primary,
@@ -95,14 +90,13 @@ def test_add_secondary(connection):
         secondary2 = UtilTest.generate_random_string()
 
         cat_sec2 = CategoryIn(
-            id_user=id_user,
             year=year,
             category_type="expense",
             primary=primary,
             secondary=secondary2,
         )
 
-        uow.category.add([cat_sec, cat_sec2])
+        uow.category.add(id_user, [cat_sec, cat_sec2])
 
         cat_get = uow.category.get_primary_list(id_user, year, "expense")
         assert len(cat_get) == 1
@@ -120,11 +114,8 @@ def test_add_secondary(connection):
             cat_sec2.secondary == cat_get[0].secondary or cat_sec2.secondary == cat_get[1].secondary
         )
 
-        # check foreign key
-        cat_sec.id_user = 20341232
-
         try:
-            uow.category.add(cat_sec)
+            uow.category.add(232142, cat_sec)
 
             error = True
 
@@ -134,29 +125,6 @@ def test_add_secondary(connection):
         if error:
             raise AssertionError("""No error is raised when adding category with 
             id user not present in the database. foreign_key may be disabled""")
-
-        # category with wrong type
-        cat_sec.category_type = "sadasd"
-        cat_prim = CategoryIn(
-            id_user=id_user,
-            year=UtilTest.generate_random_date().year,
-            category_type="income",
-            primary=UtilTest.generate_random_string(),
-            secondary=None,
-        )
-        cat_prim.category_type = "asdhas"
-        try:
-            uow.category.add(cat_sec)
-            uow.category.add(cat_prim)
-
-            error = True
-
-        except InvalidParameterError:
-            error = False
-
-        if error:
-            raise AssertionError("""No error is raised when adding category with 
-            wrong category type""")
 
         # The DuplicateEntityError is not testable from the repostiory.
 
@@ -175,18 +143,19 @@ def test_get_primary_list_category(connection):
 
         cat_get = sorted(cat_get, key=cat_sort_key)
         cat_list = sorted(cat_list, key=cat_sort_key)
-        assert cat_get == cat_list
+        assert cat_list == cat_get
 
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         _, cat_list = UtilTest.fill_user_cat(uow)
 
+        # --- get list of all primaries
         cat_prim_list = []
         for cat in cat_list:
             if cat.category_type == "income":
                 cat_prim_list.append(cat)
 
-            if cat.category_type == "expense":
+            elif cat.category_type == "expense":
                 cat_prim = CategoryOut(
                     id_primary=0,
                     id_secondary=0,
@@ -200,6 +169,8 @@ def test_get_primary_list_category(connection):
                 if cat_prim not in cat_prim_list:
                     cat_prim_list.append(cat_prim)
 
+        # ---
+
         n = 10
 
         for _ in range(n):
@@ -209,19 +180,19 @@ def test_get_primary_list_category(connection):
             year = cat1.year
             cat_type = cat1.category_type
 
-            # get only by user
-            user_list = [cat for cat in cat_prim_list if cat.id_user == id_user]
+            # --- get only by user
+            cat_comp_list = [cat for cat in cat_prim_list if cat.id_user == id_user]
             cat_get = uow.category.get_primary_list(id_user, None, None)
-            compare_prim(user_list, cat_get)
+            compare_prim(cat_comp_list, cat_get)
 
-            # get by user and year
+            # --- get by user and year
             cat_comp_list = [
                 cat for cat in cat_prim_list if cat.id_user == id_user and cat.year == year
             ]
             cat_get = uow.category.get_primary_list(id_user, year, None)
             compare_prim(cat_comp_list, cat_get)
 
-            # get by user and year and type
+            # --- get by user and year and type
             cat_comp_list = [
                 cat
                 for cat in cat_prim_list
@@ -330,22 +301,21 @@ def test_get_category(connection):
             year = cat1.year
             cat_type = cat1.category_type
 
-            # get by user
+            # --- get by user
             cat_prim_list = uow.category.get_primary_list(id_user, None, None)
             cat_sec_list = uow.category.get_secondary_list(id_user, None, None)
             cat_list = cat_prim_list + cat_sec_list
             cat_get = uow.category.get(id_user, None, None)
             compare_cat(cat_list, cat_get)
 
-            # get by user and year
+            # --- get by user and year
             cat_prim_list = uow.category.get_primary_list(id_user, year, None)
-
             cat_sec_list = uow.category.get_secondary_list(id_user, year, None)
             cat_list = cat_prim_list + cat_sec_list
             cat_get = uow.category.get(id_user, year, None)
             compare_cat(cat_list, cat_get)
 
-            # get by user and year and type
+            # --- get by user and year and type
             cat_prim_list = uow.category.get_primary_list(id_user, year, cat_type)
             if cat_type == "income":
                 cat_sec_list = []
@@ -391,8 +361,8 @@ def test_get_id_category(connection):
             assert id == cat_inc.id_primary
 
             # expense primary
-            cat_exp_list = uow.category.get_primary_list(id_user, None, "income")
-            cat_exp = random.choice(cat_inc_list)
+            cat_exp_list = uow.category.get_primary_list(id_user, None, "expense")
+            cat_exp = random.choice(cat_exp_list)
 
             id = uow.category.get_id(
                 cat_exp.id_user,

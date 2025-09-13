@@ -1,18 +1,16 @@
 import random
 import sqlite3
+import uuid
 
 import pytest
 
-from src.core.domain.user import User
+from src.core.domain.user import UserOut
 from src.core.exceptions import DuplicateEntityError
 from src.infrastructure.connection_pool import ConnectionPool
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
-# NOTE: Currently every test function is calling this function creating a new database,
-# no error is raised, only warning. This is needed because at every test a clean
-# database is needed
 @pytest.fixture
 def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
@@ -72,7 +70,7 @@ def test_get_user(connection: str):
             user_get_list = uow.user.get(None)
             user_get_list = sorted(user_get_list, key=user_sort_key)
 
-            assert sorted(user_list, key=user_sort_key) == user_get_list
+            assert sorted(user_list, key=user_sort_key) == sorted(user_get_list, key=user_sort_key)
 
 
 def test_edit_user(connection: str) -> None:
@@ -82,43 +80,53 @@ def test_edit_user(connection: str) -> None:
         n = 100
 
         for _ in range(n):
+            # --- change both the username and the password
             user_edit = random.choice(user_list)
 
-            username = UtilTest.generate_random_string()
+            username = str(uuid.uuid4())  # guaranteed to be unique
+            password = UtilTest.generate_random_string()
 
-            # Check if the username is unique, otherwise we would get an error
-            # from the database. This is not so usefull if the random string is
-            # sufficiently long
-            username_unique = False
-            idx = 0
-            while not username_unique and len(user_list) != 0:
-                if username == user_list[idx].username:
-                    username = UtilTest.generate_random_string()
-                    idx = 0  # Restart the loop
+            uow.user.edit(user_edit.id, username, password)
 
-                else:
-                    if len(user_list) - 1 == idx:
-                        username_unique = True
+            user_get = uow.user.get(username=username)
+            assert user_get[0].username == username
+            assert user_get[0].password == password
+            assert user_get[0].id == user_edit.id
 
-                    idx += 1
+            # --- change only the password
+            user_edit = random.choice(user_list)
 
-            user_edit.username = username
-            user_edit.password = UtilTest.generate_random_string()
+            password = UtilTest.generate_random_string()
 
-            uow.user.edit(user_edit)
+            uow.user.edit(user_edit.id, user_edit.username, password)
 
             user_get = uow.user.get(username=user_edit.username)
-            assert user_get[0] == user_edit
+            assert user_get[0].username == user_edit.username
+            assert user_get[0].password == password
+            assert user_get[0].id == user_edit.id
 
+            # --- change only the username
+            user_edit = random.choice(user_list)
+
+            username = str(uuid.uuid4())  # guaranteed to be unique
+
+            uow.user.edit(user_edit.id, username, user_edit.password)
+
+            user_get = uow.user.get(username=username)
+            assert user_get[0].username == username
+            assert user_get[0].password == user_edit.password
+            assert user_get[0].id == user_edit.id
+
+            # --- check duplicate username exception
             try:
-                # can't add a new
                 user_get = uow.user.get(None)
 
                 user_edit = random.choice(user_get)
                 user_edit_1 = random.choice(user_get)
 
-                user_edit.username = user_edit_1.username
-                uow.user.edit(user_edit)  # the id should be the same
+                username = user_edit_1.username
+
+                uow.user.edit(user_edit.id, username, user_edit.password)
 
             except DuplicateEntityError:
                 assert True
@@ -144,14 +152,14 @@ def test_delete_user(connection):
             cat_get = uow.category.get(id_user, None, None)
             assert cat_get == []
 
-            tr_get = uow.transaction.get(id_user, None, None)
+            tr_get, _ = uow.transaction.get(id_user, None, None)
             assert tr_get == []
 
             # settings are checked in the setting test's script
 
 
 # utils
-def user_sort_key(user: User) -> tuple:
+def user_sort_key(user: UserOut) -> tuple:
     """Used for sorting list of Users"""
 
     return (

@@ -172,13 +172,12 @@ def writer_worker() -> None:
                 elif task_name == ADD_TR_TASK_NAME:
                     try:
                         exc_rates = args[0]
-                        id_user = args[1]
-                        tr_list = args[2]
+                        tr_list = args[1]
 
                         with uow:
                             if exc_rates:
                                 uow.exchange_rate.add(exc_rates)
-                            uow.transaction.add(id_user, tr_list)
+                            uow.transaction.add(tr_list)
 
                         logger.info(f"Task completed, job_id:{job_id}")
                         job_manager.update_job(job_id, COMPLETED_CODE)
@@ -203,12 +202,11 @@ def writer_worker() -> None:
                 elif task_name == EDIT_TR_TASK_NAME:
                     try:
                         id_tr = args[0]
-                        new_id_cat = args[1]
-                        new_tr = args[2]
-                        exc_rates = args[3]
+                        new_tr = args[1]
+                        exc_rates = args[2]
 
                         with uow:
-                            uow.transaction.edit(id_tr, new_id_cat, new_tr)
+                            uow.transaction.edit(id_tr, new_tr)
                             if exc_rates:
                                 uow.exchange_rate.add(exc_rates)
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import date
 
-from src.core.domain.transaction import TransactionIn, TransactionOut
+from src.core.domain.transaction import TransactionOut, TransactionRepoIn
 
 
 class AbstractTransactionRepository(ABC):
@@ -18,7 +18,7 @@ class AbstractTransactionRepository(ABC):
     """
 
     @abstractmethod
-    def add(self, id_user: int, tr_list: list[tuple[int, TransactionIn]]) -> None:
+    def add(self, id_user: int, tr_list: list[TransactionRepoIn]) -> None:
         """Add transaction to the database.
 
         All the trensactions will be added to the user with the given id_user.
@@ -26,14 +26,9 @@ class AbstractTransactionRepository(ABC):
         Parameters
         ----------
             - id_user (int) : id of the user for which the transactions will be added.
-            - tr_list (list) : List containing tuples that have as first argument
-                the id_category of the transaction's category, and as second
-                argument the TransactionIn instance of the transaction to be
-                saved in the db.
+            - tr_list (list) : list containing TransactionRepoIn instances.
                 Attention: If the id_category is not present in the database
-                a ForeignKeyError is raised. But no control is done wheter the
-                given id_category correspond to the given primary, secondary, type,
-                id_user and year.
+                a ForeignKeyError is raised.
 
         Raises
         ------
@@ -99,11 +94,11 @@ class AbstractTransactionRepository(ABC):
             - offset (int) : starting line number after the beginning. Can be used
                 when a limit is set and it is required to show the remaining
                 transactions. The defualt value is 0.
-            -name (str or None) : used to search transactions with name similar to
+            - name (str or None) : used to search transactions with name similar to
                 the given value. Only the starting character are compared (ie
                 if name = cine, names that will be returned are cinema, cine..., car is
-                not returned). If None, the comparison is not done. None is the
-                defualt value
+                not returned). The comparison is case insensitive (ie aBcD is the same
+                as AbCD) If None, the comparison is not done. None is the defualt value.
 
         Returns
         -------
@@ -184,7 +179,7 @@ class AbstractTransactionRepository(ABC):
             #         },
             #     },
             #     prim_2: {
-            #         None: {
+            #         N/A: {
             #             "2021-01": 255.6,
             #             "2022-04": 686.6,
             #             "2024-05": 9023.5,
@@ -221,7 +216,7 @@ class AbstractTransactionRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def edit(self, id_tr: int, new_id_cat: int, new_tr: TransactionIn) -> None:
+    def edit(self, id_tr: int, new_tr: TransactionRepoIn) -> None:
         """Edit a transaction.
 
         The only parameter that can be changed are:
@@ -239,18 +234,15 @@ class AbstractTransactionRepository(ABC):
         Parameters
         ----------
             - id_tr (int) : id of the transaction to be modified.
-            - new_id_cat (int) : id of the new transaction's category.
-                If the category doesn't change, the old one should be provided.
-                Attention: If the id_category is not present in the database
-                a ForeignKeyError is raised. But no control is done wheter the
-                given id_category correspond to the given primary, secondary, type,
-                id_user and year.
             - new_tr (TransactionIn) : Transaction with the new updated values.
                 Even if the new Transaction has different parameter for id_user,
                 the transaction is changed without modifing that parameter.
+                Attention: If the id_category is not present in the database
+                a ForeignKeyError is raised.
 
         Raises
         ------
+            - ForeignKeyError: If the given new id_cat is not present in the database.
             - RepositoryError: If something went wrong with the database
         """
 

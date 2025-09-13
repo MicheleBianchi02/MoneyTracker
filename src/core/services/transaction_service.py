@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
-from src.core.domain.transaction import TransactionIn, TransactionOut
+from src.core.domain.transaction import TransactionIn, TransactionOut, TransactionRepoIn
 from src.core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
@@ -112,6 +112,7 @@ class TransactionService:
                     )
 
                     if id_cat is None:
+                        logger.error("Category not present in the database")
                         raise ServiceCategoryNotFoundError(
                             message="Category not present in the database.",
                             details={
@@ -122,13 +123,21 @@ class TransactionService:
                             },
                         )
 
-                    valid_tr_list.append((id_cat, tr))
+                    tr = TransactionRepoIn(
+                        id_user=id_user,
+                        id_cat=id_cat,
+                        tr_date=tr.tr_date,
+                        name=tr.name,
+                        value=tr.value,
+                        currency=tr.currency,
+                        description=tr.description,
+                    )
+                    valid_tr_list.append(tr)
 
                 exc_rates = self._get_missing_exchange_rate(uow, date_list)
 
             job_manager.add_job(job_id)
-
-            args = (exc_rates, id_user, valid_tr_list)
+            args = (exc_rates, valid_tr_list)
             task_queue.put((ADD_TR_TASK_NAME, job_id, args), block=True)
 
             return job_id
@@ -524,11 +533,21 @@ class TransactionService:
                         },
                     )
 
+                new_tr = TransactionRepoIn(
+                    id_user=id_user,
+                    id_cat=new_id_cat,
+                    tr_date=new_tr.tr_date,
+                    name=new_tr.name,
+                    value=new_tr.value,
+                    currency=new_tr.currency,
+                    description=new_tr.description,
+                )
+
                 exc_rates = self._get_missing_exchange_rate(uow, [new_tr.tr_date])
 
             job_manager.add_job(job_id)
 
-            args = (id_tr, new_id_cat, new_tr, exc_rates)
+            args = (id_tr, new_tr, exc_rates)
             task_queue.put((EDIT_TR_TASK_NAME, job_id, args), block=True)
 
             return job_id

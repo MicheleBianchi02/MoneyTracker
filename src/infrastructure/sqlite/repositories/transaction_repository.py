@@ -2,7 +2,7 @@ import collections
 import sqlite3
 from datetime import date, timedelta
 
-from src.core.domain.transaction import TransactionIn, TransactionOut
+from src.core.domain.transaction import TransactionOut, TransactionRepoIn
 from src.core.exceptions import (
     EntityNotFoundError,
     ForeignKeyError,
@@ -14,13 +14,17 @@ from src.core.repositories.abstract_transaction_repository import (
 )
 from src.infrastructure.sqlite.repositories.categories_repository import CategoryRepository
 
+# Used ein the get_summary function to substitute the None keys. Because None
+# can't be parsed as a valid json key
+NONE_REPLACEMENT = "N/A"
+
 
 class TransactionRepository(AbstractTransactionRepository):
     def __init__(self, connection: sqlite3.Connection, cat_repo: CategoryRepository) -> None:
         self._connection = connection
         self._cat_repo = cat_repo
 
-    def add(self, id_user: int, tr_list: list[tuple[int, TransactionIn]]) -> None:
+    def add(self, tr_list: list[TransactionRepoIn]) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -39,15 +43,15 @@ class TransactionRepository(AbstractTransactionRepository):
         try:
             parameters = [
                 (
-                    id_user,
-                    id_cat,
+                    tr.id_user,
+                    tr.id_cat,
                     tr.tr_date.isoformat(),
                     tr.name,
                     tr.value,
                     tr.description,
                     tr.currency,
                 )
-                for id_cat, tr in tr_list
+                for tr in tr_list
             ]
 
             cursor.executemany(sql, parameters)
@@ -86,25 +90,25 @@ class TransactionRepository(AbstractTransactionRepository):
 
         cursor = self._connection.cursor()
 
-        if order is not None:
-            if order == "name":
-                order = "tr.name"
-            elif order == "currency":
-                order = "tr.currency, tr.tr_date"
-            elif order == "date":
-                order = "tr.tr_date"
-            elif order == "value":
-                order = "tr.tr_value"
-
-            elif order == "primary":
-                order = "primary_name, secondary_name"
-            elif order == "secondary":
-                order = "secondary_name, primary_name"
-            else:
-                raise InvalidParameterError(f"Invalid order name:{order}")
-
         if order_dir not in ["ASC", "DESC"]:
             raise InvalidParameterError(f"Invalid order direction:{order_dir}")
+
+        if order is not None:
+            if order == "name":
+                order = f"tr.name {order_dir}"
+            elif order == "currency":
+                order = f"tr.currency {order_dir}, tr.tr_date {order_dir}"
+            elif order == "date":
+                order = f"tr.tr_date {order_dir}"
+            elif order == "value":
+                order = f"tr.tr_value {order_dir}"
+
+            elif order == "primary":
+                order = f"primary_name {order_dir}, secondary_name {order_dir}"
+            elif order == "secondary":
+                order = f"secondary_name {order_dir}, primary_name {order_dir}"
+            else:
+                raise InvalidParameterError(f"Invalid order name:{order}")
 
         # This query will work even if the transaction is an expense and it's
         # category is a primary.
@@ -196,7 +200,7 @@ class TransactionRepository(AbstractTransactionRepository):
                 parameters.append(name)
 
             if order is not None:
-                sql += f" ORDER BY {order} {order_dir}"
+                sql += f" ORDER BY {order}"
 
             if limit is not None:
                 sql += " LIMIT ? OFFSET ?"
@@ -207,7 +211,7 @@ class TransactionRepository(AbstractTransactionRepository):
             cursor.execute(sql, parameters)
             tr_ret_list = cursor.fetchall()
 
-            if to_currency is not None:
+            if to_currency is not None and tr_ret_list:
                 actual_min_date_str = min(t[2] for t in tr_ret_list)
                 actual_max_date_str = max(t[2] for t in tr_ret_list)
 
@@ -227,6 +231,8 @@ class TransactionRepository(AbstractTransactionRepository):
                     # register only the first false
                     if is_valid and not is_tr_valid:
                         is_valid = False
+
+                    tr_currency = to_currency
 
                 tr_list.append(
                     TransactionOut(
@@ -287,6 +293,7 @@ class TransactionRepository(AbstractTransactionRepository):
             # TODO: For better performance we can spawn two threads that can take
             # transactions and exchange rates indipendently. Maybe there are problem
             # with the connection (can't share connection with multiple thread)?
+            # Maybe rewrite something in C? Or change the logic.
             cursor = self._connection.cursor()
 
             # Fetch all relevant raw transactions (same as before)
@@ -350,7 +357,7 @@ class TransactionRepository(AbstractTransactionRepository):
 
             for tr_date_str, tr_currency, tr_value, primary_cat, secondary_cat in transactions:
                 month_year = tr_date_str[:7]  # yyyy-mm
-                secondary_key = secondary_cat if secondary_cat is not None else "N/A"
+                secondary_key = secondary_cat if secondary_cat is not None else NONE_REPLACEMENT
 
                 converted_value, is_tr_valid = _get_converted_value(
                     filled_rates, tr_date_str, tr_currency, tr_value, to_currency
@@ -452,7 +459,7 @@ class TransactionRepository(AbstractTransactionRepository):
                 f"Error while getting transactions with category id: {id_cat}"
             ) from e
 
-    def edit(self, id_tr: int, new_id_cat: int, new_tr: TransactionIn) -> None:
+    def edit(self, id_tr: int, new_tr: TransactionRepoIn) -> None:
         cursor = self._connection.cursor()
 
         sql = """
@@ -470,7 +477,7 @@ class TransactionRepository(AbstractTransactionRepository):
             """
 
         parameters = (
-            new_id_cat,
+            new_tr.id_cat,
             new_tr.tr_date.isoformat(),
             new_tr.name,
             new_tr.value,

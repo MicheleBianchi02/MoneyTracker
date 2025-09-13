@@ -1,13 +1,14 @@
 import calendar
 import random
 import string
+import uuid
 from datetime import date
 
 from src.core.domain.category import CategoryIn, CategoryOut
 from src.core.domain.exchange_rate import ExchangeRate
 from src.core.domain.setting import Setting
-from src.core.domain.transaction import TransactionIn, TransactionOut
-from src.core.domain.user import User
+from src.core.domain.transaction import TransactionOut, TransactionRepoIn
+from src.core.domain.user import UserOut
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.sqlite.initializer import initialize_database
 from src.infrastructure.sqlite.unit_of_work import UnitOfWork
@@ -21,7 +22,7 @@ class UtilTest:
     def generate_random_string():
         len = random.randint(10, 20)
 
-        char_set = string.ascii_uppercase + string.digits
+        char_set = string.ascii_letters + string.digits
         return "".join(random.sample(char_set * len, len))
 
     @staticmethod
@@ -47,43 +48,29 @@ class UtilTest:
         Needed such that only one connection per test is created. Usefull when using
         in memory database (db_path = :memory:)."""
 
-        initialize_database(uow.connection)
+        initialize_database(uow._connection)
 
     @staticmethod
-    def fill_user(uow: UnitOfWork, n_user: int = 3) -> list[User]:
+    def fill_user(uow: UnitOfWork, n_user: int = 3) -> list[UserOut]:
         """Add random user to the database and return the User list with the
         correct ids"""
 
         user_list = []
         for _ in range(n_user):
-            username = UtilTest.generate_random_string()
+            username = str(uuid.uuid4())  # guaranteed to be unique
+            password = UtilTest.generate_random_string()
 
-            # Check if the username is unique, otherwise we would get an error
-            # from the database. This is not so usefull if the random string is
-            # sufficiently long
-            username_unique = False
-            idx = 0
-            while not username_unique and len(user_list) != 0:
-                if username == user_list[idx].username:
-                    username = UtilTest.generate_random_string()
-                    idx = 0  # Restart the loop
-
-                else:
-                    if len(user_list) - 1 == idx:
-                        username_unique = True
-
-                    idx += 1
-
+            # id is edited later
             user_list.append(
-                User(
+                UserOut(
+                    id=0,
                     username=username,
-                    password=UtilTest.generate_random_string(),
+                    password=password,
                 )
             )
 
         for user in user_list:
-            id_user = uow.user.add(user.username, user.password)
-            user.id = id_user
+            user.id = uow.user.add(user.username, user.password)
 
         return user_list
 
@@ -91,119 +78,112 @@ class UtilTest:
     def fill_user_cat(
         uow: UnitOfWork,
         n_user=3,
-        n_prim=300,
+        n_prim=100,
         n_sec=10,
-    ) -> tuple[list[User], list[CategoryOut]]:
+    ) -> tuple[list[UserOut], list[CategoryOut]]:
         """Add n_user users, n_prim primary categories and n_sec secondary categories
-        to each primary to the database.
+        to each primary to the database. n_prim primaries category are added to each
+        user.
+        Some primaries' expenses doesn't have children secondaries (approximatelly half
+        of them).
         The list of users, and category are returned.
         Each returned category has the wrong value of id_primary (the one in the db)
         id_secondary (None only for income).
         """
-
-        # n_prim should not be too small (150 can be problemantic) since it can occour
-        # that no secondaries are created.
 
         user_list = UtilTest.fill_user(uow, n_user)
 
         # increase the number of expenses in the db
         possible_cat_type = ["income", "expense", "expense"]
 
-        cat_list_in = []
-        cat_list_out = []
-
         # Add a secondary category that has the same name as a primary (not the parent one)
 
-        id_user = random.choice(user_list).id
-        year = UtilTest.generate_random_date().year
-        primary_1 = UtilTest.generate_random_string()
-        cat_list_in.append(
-            CategoryIn(
-                id_user=id_user,
-                year=year,
-                category_type="expense",
-                primary=primary_1,
-                secondary=None,
-            )
-        )
-
-        cat_list_out.append(
-            CategoryOut(
-                id_primary=0,
-                id_secondary=0,
-                id_user=id_user,
-                year=year,
-                category_type="expense",
-                primary=primary_1,
-                secondary=None,
-            )
-        )
-
-        primary_2 = UtilTest.generate_random_string()
-        cat_list_in.append(
-            CategoryIn(
-                id_user=id_user,
-                year=year,
-                category_type="expense",
-                primary=primary_2,
-                secondary=primary_1,
-            )
-        )
-
-        cat_list_out.append(
-            CategoryOut(
-                id_primary=0,
-                id_secondary=0,
-                id_user=id_user,
-                year=year,
-                category_type="expense",
-                primary=primary_2,
-                secondary=primary_1,
-            )
-        )
-
-        n_prim_rep = int(n_prim / 2)
-
-        for _ in range(n_prim - n_prim_rep - 2):
-            year = UtilTest.generate_random_date().year
-            user = random.choice(user_list)
+        complete_out_list = []
+        for user in user_list:
+            cat_list_in = []
+            cat_list_out = []
             id_user = user.id
+            year = UtilTest.generate_random_date().year
 
-            cat_type = random.choice(possible_cat_type)
-
-            if cat_type == "income":
-                primary = UtilTest.generate_random_string()
-                cat = CategoryIn(
-                    id_user=id_user,
+            primary_1 = UtilTest.generate_random_string()
+            cat_list_in.append(
+                CategoryIn(
                     year=year,
-                    category_type="income",
-                    primary=primary,
+                    category_type="expense",
+                    primary=primary_1,
                     secondary=None,
                 )
+            )
 
-                cat_list_in.append(cat)
-
-                cat_out = CategoryOut(
+            cat_list_out.append(
+                CategoryOut(
                     id_primary=0,
-                    id_secondary=None,
+                    id_secondary=0,
                     id_user=id_user,
                     year=year,
-                    category_type="income",
-                    primary=primary,
+                    category_type="expense",
+                    primary=primary_1,
                     secondary=None,
                 )
+            )
 
-                cat_list_out.append(cat_out)
+            primary_2 = UtilTest.generate_random_string()
+            cat_list_in.append(
+                CategoryIn(
+                    year=year,
+                    category_type="expense",
+                    primary=primary_2,
+                    secondary=primary_1,
+                )
+            )
 
-            else:
-                primary = UtilTest.generate_random_string()
+            cat_list_out.append(
+                CategoryOut(
+                    id_primary=0,
+                    id_secondary=0,
+                    id_user=id_user,
+                    year=year,
+                    category_type="expense",
+                    primary=primary_2,
+                    secondary=primary_1,
+                )
+            )
 
-                # Half of the expenses categories are only primary, they don't have any
-                # secondary
+            n_prim_rep = int(n_prim / 2)
 
-                if random.random() < 0.5:
+            for _ in range(n_prim - n_prim_rep - 2):
+                year = UtilTest.generate_random_date().year
+
+                cat_type = random.choice(possible_cat_type)
+
+                if cat_type == "income":
+                    primary = UtilTest.generate_random_string()
                     cat = CategoryIn(
                         id_user=id_user,
+                        year=year,
+                        category_type="income",
+                        primary=primary,
+                        secondary=None,
+                    )
+
+                    cat_list_in.append(cat)
+
+                    cat_out = CategoryOut(
+                        id_primary=0,
+                        id_secondary=None,
+                        id_user=id_user,
+                        year=year,
+                        category_type="income",
+                        primary=primary,
+                        secondary=None,
+                    )
+
+                    cat_list_out.append(cat_out)
+
+                else:
+                    primary = UtilTest.generate_random_string()
+
+                    cat = CategoryIn(
                         year=year,
                         category_type="expense",
                         primary=primary,
@@ -224,110 +204,111 @@ class UtilTest:
 
                     cat_list_out.append(cat_out)
 
-                else:
-                    for _ in range(n_sec):
-                        secondary = UtilTest.generate_random_string()
-                        cat = CategoryIn(
-                            id_user=id_user,
-                            year=year,
-                            category_type="expense",
-                            primary=primary,
-                            secondary=secondary,
-                        )
+                    # Half of the expenses categories will be only primary, they will not
+                    # have any secondaries
+                    if random.random() < 0.5:
+                        for _ in range(n_sec):
+                            secondary = UtilTest.generate_random_string()
+                            cat = CategoryIn(
+                                year=year,
+                                category_type="expense",
+                                primary=primary,
+                                secondary=secondary,
+                            )
 
-                        cat_list_in.append(cat)
+                            cat_list_in.append(cat)
 
-                        cat_out = CategoryOut(
-                            id_primary=0,
-                            id_secondary=0,
-                            id_user=id_user,
-                            year=year,
-                            category_type="expense",
-                            primary=primary,
-                            secondary=secondary,
-                        )
+                            cat_out = CategoryOut(
+                                id_primary=0,
+                                id_secondary=0,
+                                id_user=id_user,
+                                year=year,
+                                category_type="expense",
+                                primary=primary,
+                                secondary=secondary,
+                            )
 
-                        cat_list_out.append(cat_out)
+                            cat_list_out.append(cat_out)
 
-        # Add categories to other year with the same name of already present categories.
-        # We have to test if having the same category name in different year would create
-        # problems.
+            # Add categories to other year with the same name of already present categories.
+            # We have to test if having the same category name in different year would create
+            # problems.
 
-        # In cat_list_in there are CategoryOut object. For income type they are
-        # primary but for expenses they have both primary and secondary. Since the
-        # number of secondary is n_prim, we need to add primaries up to n_prim.
-        # To do so, for expenses, we add all the secondaries for each primary.
-        # The two while are needed since in the cat_list_in are not present the
-        # primary for expenses (ie secondary=None and category_type = expense)
+            # In cat_list_in there are CategoryOut object. For income type they are
+            # primary but for expenses they have both primary and secondary. Since the
+            # number of secondary is n_prim, we need to add primaries up to n_prim.
+            # To do so, for expenses, we add all the secondaries for each primary.
+            # The two while are needed since in the cat_list_in are not present the
+            # primary for expenses (ie secondary=None and category_type = expense)
 
-        i = 0
-        j = 0  # count n_primary added
-        while j < n_prim_rep:
-            cat1 = cat_list_in[i]
+            i = 0
+            j = 0  # count n_primary added
+            while j < n_prim_rep:
+                cat1 = cat_list_in[i]
 
-            if cat1.category_type == "income":
-                catIn = CategoryIn(
-                    id_user=cat1.id_user,
-                    year=cat1.year + 1,
-                    category_type=cat1.category_type,
-                    primary=cat1.primary,
-                    secondary=cat1.secondary,
-                )
-                catOut = CategoryOut(
-                    id_primary=0,
-                    id_secondary=None,
-                    id_user=cat1.id_user,
-                    year=cat1.year + 1,
-                    category_type=cat1.category_type,
-                    primary=cat1.primary,
-                    secondary=cat1.secondary,
-                )
-                cat_list_in.append(catIn)
-                cat_list_out.append(catOut)
-
-                i += 1
-                j += 1
-
-            else:
-                # add all secondaries for the given primary
-                cat_sec = cat_list_in[i]
-                primary = cat_sec.primary
-                while cat_sec.category_type == "expense" and cat_sec.primary == primary:
+                if cat1.category_type == "income":
                     catIn = CategoryIn(
-                        id_user=cat_sec.id_user,
-                        year=cat_sec.year + 1,
-                        category_type=cat_sec.category_type,
-                        primary=cat_sec.primary,
-                        secondary=cat_sec.secondary,
+                        year=cat1.year + 1,
+                        category_type=cat1.category_type,
+                        primary=cat1.primary,
+                        secondary=cat1.secondary,
                     )
                     catOut = CategoryOut(
                         id_primary=0,
-                        id_secondary=0,
-                        id_user=cat_sec.id_user,
-                        year=cat_sec.year + 1,
-                        category_type=cat_sec.category_type,
-                        primary=cat_sec.primary,
-                        secondary=cat_sec.secondary,
+                        id_secondary=None,
+                        id_user=id_user,
+                        year=cat1.year + 1,
+                        category_type=cat1.category_type,
+                        primary=cat1.primary,
+                        secondary=cat1.secondary,
                     )
                     cat_list_in.append(catIn)
                     cat_list_out.append(catOut)
+
                     i += 1
+                    j += 1
+
+                else:
+                    # add all secondaries for the given primary
                     cat_sec = cat_list_in[i]
+                    primary = cat_sec.primary
+                    while cat_sec.category_type == "expense" and cat_sec.primary == primary:
+                        catIn = CategoryIn(
+                            year=cat_sec.year + 1,
+                            category_type=cat_sec.category_type,
+                            primary=cat_sec.primary,
+                            secondary=cat_sec.secondary,
+                        )
+                        catOut = CategoryOut(
+                            id_primary=0,
+                            id_secondary=0,
+                            id_user=id_user,
+                            year=cat_sec.year + 1,
+                            category_type=cat_sec.category_type,
+                            primary=cat_sec.primary,
+                            secondary=cat_sec.secondary,
+                        )
+                        cat_list_in.append(catIn)
+                        cat_list_out.append(catOut)
+                        i += 1
+                        cat_sec = cat_list_in[i]
 
-                j += 1
+                    j += 1
 
-        uow.category.add(cat_list_in)
+            uow.category.add(id_user, cat_list_in)
 
-        return user_list, cat_list_out
+            complete_out_list.extend(cat_list_out)
+
+        return user_list, complete_out_list
 
     @staticmethod
     def fill_user_cat_tr(
         uow: UnitOfWork,
         n_user: int = 3,
-        n_prim: int = 300,
+        n_prim: int = 80,
         n_sec: int = 10,
         n_tr: int = 500,
-    ) -> tuple[list[User], list[CategoryOut], list[TransactionOut]]:
+    ) -> tuple[list[UserOut], list[CategoryOut], list[TransactionOut]]:
         """Add n_user users, n_prim primary categories, n_sec secondary categories
         and n_tr transactions to the database.
         The list of id_users, primary category and secondary categories and transactions
@@ -357,6 +338,7 @@ class UtilTest:
 
             if cat_prim.category_type == "income":
                 cat = cat_prim
+                id_cat = cat.id_primary
             else:
                 # expense
                 cat_sec_list = uow.category.get_secondary_list(
@@ -366,22 +348,23 @@ class UtilTest:
                 )
 
                 # Some transactions have only primary
-                if len(cat_sec_list) == 0:
+                if not cat_sec_list:
                     cat = cat_prim
+
+                    id_cat = cat.id_primary
 
                 else:
                     cat = random.choice(cat_sec_list)
+                    id_cat = cat.id_secondary
 
             tr_date = UtilTest.generate_random_date(cat.year)
             name = UtilTest.generate_random_string()
             value = random.random() * 100000
             currency = random.choice(currencies)
             description = UtilTest.generate_random_string()
-            tr_in = TransactionIn(
+            tr_in = TransactionRepoIn(
                 id_user=cat.id_user,
-                primary=cat.primary,
-                secondary=cat.secondary,
-                tr_type=cat.category_type,
+                id_cat=id_cat,
                 tr_date=tr_date,
                 name=name,
                 value=value,
@@ -414,7 +397,7 @@ class UtilTest:
         uow: UnitOfWork,
         settings: list[Setting],
         n_user: int = 3,
-    ) -> tuple[list[User], dict[str, Setting]]:
+    ) -> tuple[list[UserOut], dict[str, Setting]]:
         user_list = UtilTest.fill_user(uow, n_user)
 
         # It is required to create a copy of each setting since the one passed as an
