@@ -15,7 +15,6 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.user_service import UserService
 from src.infrastructure.dependencies import get_uow
-from src.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, UNKNOWN_CODE, check_status
 
 router = APIRouter(prefix="/users", tags=["Users"])
 user_service = UserService()
@@ -30,16 +29,9 @@ def add_user(
     Adds a new user.
     """
     try:
-        job_id = user_service.add(uow, user.username, user.password)
+        id_user = user_service.add(uow, user.username, user.password)
 
-        status, result = check_status(job_id)
-
-        id_user = result["id_user"]
-
-        if status == COMPLETED_CODE:
-            return {"message": "User created successfully", "id_user": id_user}
-        elif status == FAILED_CODE or status == UNKNOWN_CODE:
-            raise InternalServerErrorException()
+        return {"message": "User created successfully", "id_user": id_user}
 
     except UsernameAlreadyPresentError:
         raise DuplicateUserException()
@@ -68,7 +60,7 @@ def edit_user(
     Edits an existing user.
     """
     try:
-        job_id = user_service.edit(
+        user_service.edit(
             uow,
             id_user,
             user.new_username,
@@ -76,12 +68,7 @@ def edit_user(
             user.old_password,
         )
 
-        status, result = check_status(job_id)
-
-        if status == COMPLETED_CODE:
-            return {"message": "User edited successfully"}
-        elif status == FAILED_CODE or status == UNKNOWN_CODE:
-            raise InternalServerErrorException()
+        return {"message": "User edited successfully"}
 
     except OperationNotPermittedError:
         raise UnauthorizedException()
@@ -103,14 +90,7 @@ def delete_user(
     Deletes a user.
     """
     try:
-        job_id = user_service.delete(uow, id_user, user.current_password)
-
-        status, result = check_status(job_id)
-
-        if status == COMPLETED_CODE:
-            return {"message": "User deleted successfully"}
-        elif status == FAILED_CODE or status == UNKNOWN_CODE:
-            raise InternalServerErrorException()
+        user_service.delete(uow, id_user, user.current_password)
 
     except OperationNotPermittedError:
         raise UnauthorizedException()

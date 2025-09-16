@@ -22,7 +22,6 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.category_service import CategoryService
 from src.infrastructure.dependencies import get_uow
-from src.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, UNKNOWN_CODE, check_status
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 category_service = CategoryService()
@@ -31,7 +30,6 @@ category_service = CategoryService()
 @router.post("/", status_code=201, response_model=None)
 def add_category(
     category: list[CategoryIn],
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
@@ -39,20 +37,9 @@ def add_category(
     Adds a new category or a list of categories.
     """
     try:
-        job_id = category_service.add_category(uow, id_user, category)
+        category_service.add_category(uow, id_user, category)
 
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Category added successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        return {"message": "Category added successfully."}
 
     except InvalidCategoryError:
         raise BadRequestException()
@@ -116,7 +103,6 @@ def get_all_categories(
 def edit_category(
     id_cat: int,
     new_name: str,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
@@ -124,19 +110,8 @@ def edit_category(
     Edits the name of a category.
     """
     try:
-        job_id = category_service.edit(uow, id_cat, new_name, id_user)
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Category added successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        category_service.edit(uow, id_cat, new_name, id_user)
+        return {"message": "Category added successfully."}
 
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
@@ -149,7 +124,6 @@ def edit_category(
 @router.delete("/{id_cat}", status_code=204, response_model=None)
 def delete_category(
     id_cat: int,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
@@ -162,22 +136,10 @@ def delete_category(
         ret = category_service.delete(uow, id_cat, id_user)
 
         if isinstance(ret, list):
+            # TODO: return also the tr_list
             raise TransactionUseCategoryException()
-        else:
-            job_id = ret
 
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Category added successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        return {"message": "Category added successfully."}
 
     except OperationNotPermittedError:
         raise ForbiddenException()

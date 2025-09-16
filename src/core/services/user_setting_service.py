@@ -12,7 +12,7 @@ from src.core.exceptions import (
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.exc_rate_service import exc_rate_service
-from src.infrastructure.job_manager import job_manager
+from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
 from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import (
     ADD_CURRENCY_TASK_NAME,
@@ -30,7 +30,7 @@ class UserSettingService:
         id_user: int,
         setting_name: str,
         value: int | float | str | bool,
-    ) -> str:
+    ) -> None:
         """Add or update user specific setting in the database.
 
         Parameters
@@ -41,11 +41,6 @@ class UserSettingService:
                 match the one of the setting (the data_type column in the db's table).
                 If the setting is constrained, the value is the item_value of the allowed
                 setting, that should be inside the relative table.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -72,7 +67,10 @@ class UserSettingService:
             args = (id_user, setting_name, value)
             task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, result = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -179,7 +177,10 @@ class UserSettingService:
             args = (id_user, currency_code, currency_symbol)
             task_queue.put((ADD_CURRENCY_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, result = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -221,18 +222,13 @@ class UserSettingService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_currency(self, uow: AbstractUnitOfWork, id_user: int, currency_code: str) -> str:
+    def delete_currency(self, uow: AbstractUnitOfWork, id_user: int, currency_code: str) -> None:
         """Delete user specific currency from the database.
 
         Parameters
         ----------
             - id_user (int) : id of the user
             - currency_code (str) : currency to be deleted.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -265,7 +261,10 @@ class UserSettingService:
             args = (id_user, currency_code)
             task_queue.put((DELETE_CURRENCY_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, result = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))

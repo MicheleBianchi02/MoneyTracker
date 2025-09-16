@@ -25,12 +25,6 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.transaction_service import TransactionService
 from src.infrastructure.dependencies import get_uow
-from src.infrastructure.job_manager import (
-    COMPLETED_CODE,
-    FAILED_CODE,
-    UNKNOWN_CODE,
-    check_status,
-)
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 transaction_service = TransactionService()
@@ -49,28 +43,14 @@ class SummaryResponse(BaseModel):
 @router.post("/", status_code=201, response_model=None)
 def add_transaction(
     transaction: list[TransactionIn] | TransactionIn,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
-) -> str | dict[str, str]:
-    """Adds a new transaction.
-    If wait_response is True nothing is returned, otherwise the job_id is returned."""
+) -> dict[str, str]:
+    """Adds a new transaction."""
 
     try:
-        job_id = transaction_service.add_transaction(uow, id_user, transaction)
-
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Transaction added successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        transaction_service.add_transaction(uow, id_user, transaction)
+        return {"message": "Transaction edited successfully."}
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()
@@ -166,28 +146,15 @@ def get_summary(
 def edit_transaction(
     id_tr: int,
     new_tr: TransactionIn,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
-) -> str | dict[str, str]:
+) -> dict[str, str]:
     """
     Edits an existing transaction.
     """
     try:
-        job_id = transaction_service.edit_transaction(uow, id_tr, new_tr, id_user)
-
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Transaction edited successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        transaction_service.edit_transaction(uow, id_tr, new_tr, id_user)
+        return {"message": "Transaction edited successfully."}
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()
@@ -204,28 +171,15 @@ def edit_transaction(
 @router.delete("/{id_tr}", status_code=204, response_model=None)
 def delete_transaction(
     id_tr: int,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
-) -> str | dict[str, str]:
+) -> dict[str, str]:
     """
     Deletes a transaction.
     """
     try:
-        job_id = transaction_service.delete_transaction(uow, id_tr, id_user)
-
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Transaction deleted successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException(
-                    f"Internal server error - job_status:{status} ",
-                )
-
-        else:
-            return job_id
+        transaction_service.delete_transaction(uow, id_tr, id_user)
+        return {"message": "Transaction deleted successfully."}
 
     except ServiceTransactionNotFoundError:
         raise TransactionNotFoundException()

@@ -46,7 +46,7 @@ class TransactionService:
         unit_of_work: AbstractUnitOfWork,
         id_user: int,
         transaction_list: list[TransactionIn] | TransactionIn,
-    ) -> str:
+    ) -> None:
         """Add transaction to the database.
 
         All transaction will be added to the user with the given id.
@@ -57,11 +57,6 @@ class TransactionService:
             - transaction_list (list or TransactionIn): List containing all the transaction
                 that need to saved in the database. The argument can also be a single
                 TransactionIn.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -140,7 +135,10 @@ class TransactionService:
             args = (exc_rates, valid_tr_list)
             task_queue.put((ADD_TR_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -261,7 +259,7 @@ class TransactionService:
 
                 return tr_list, is_valid
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -392,9 +390,7 @@ class TransactionService:
                     task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
                     status, _ = check_status(job_id)
                     if status == FAILED_CODE or status == UNKNOWN_CODE:
-                        logger.error(
-                            f"Service error - job_status:{status}, job_id:{job_id}",
-                        )
+                        logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
                         raise ServiceError(
                             f"Service error - job_status:{status}, job_id:{job_id}",
                         )
@@ -444,7 +440,7 @@ class TransactionService:
         id_tr: int,
         new_tr: TransactionIn,
         id_user: int,
-    ) -> str:
+    ) -> None:
         """Edit a transaction.
 
         The only parameter that can be changed are:
@@ -466,11 +462,6 @@ class TransactionService:
                 the wrong id_category may be returned.
             - id_user (int) : id of the user (used to check if the id_tr pertain to
                 the given user).
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -549,14 +540,16 @@ class TransactionService:
 
             args = (id_tr, new_tr, exc_rates)
             task_queue.put((EDIT_TR_TASK_NAME, job_id, args), block=True)
-
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int, id_user: int) -> str:
+    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int, id_user: int) -> None:
         """Delete a transaction from the database.
 
         Parameters
@@ -564,11 +557,6 @@ class TransactionService:
             - id_tr (int) : id of the transaction to be deleted.
             - id_user (int) : id of the user (used to check if the id_tr pertain to
                 the given user).
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -600,8 +588,10 @@ class TransactionService:
             job_manager.add_job(job_id)
             args = (id_tr,)
             task_queue.put((DELETE_TR_TASK_NAME, job_id, args), block=True)
-
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))

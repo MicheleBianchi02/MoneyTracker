@@ -13,7 +13,7 @@ from src.core.exceptions import (
     ServiceError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import job_manager
+from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
 from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
 
@@ -26,7 +26,7 @@ class CategoryService:
         uow: AbstractUnitOfWork,
         id_user: int,
         cat_list: list[CategoryIn] | CategoryIn,
-    ) -> str:
+    ) -> None:
         """Add Category to the database.
 
         All the categories will be added to the user with the given id_user.
@@ -49,11 +49,6 @@ class CategoryService:
             - ServiceDuplicateCategoryError: If Unique constraint error occour (e.g. two identical
                 category are inserted)
             - ServiceError: If something went wrong with the repository or the service.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Notes
         -----
@@ -118,9 +113,12 @@ class CategoryService:
             args = (id_user, cat_list)
             task_queue.put((ADD_CAT_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -157,7 +155,7 @@ class CategoryService:
             with uow:
                 return uow.category.get_primary_list(id_user, year, cat_type)
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -198,7 +196,7 @@ class CategoryService:
             with uow:
                 return uow.category.get_secondary_list(id_user, year, primary)
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -235,7 +233,7 @@ class CategoryService:
             with uow:
                 return uow.category.get(id_user, year, cat_type)
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
@@ -250,11 +248,6 @@ class CategoryService:
             - id_cat (int) : id of the category to be edited
             - new_name (str) : new name of the category to be edited
             - id_user (int) : id_user of the category to be edited
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -294,15 +287,18 @@ class CategoryService:
             args = (id_cat, new_name)
             task_queue.put((EDIT_CAT_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
     def delete(
         self, uow: AbstractUnitOfWork, id_cat: int, id_user: int
-    ) -> list[TransactionOut] | str:
+    ) -> list[TransactionOut] | None:
         """Delete the given category.
 
         Parameters
@@ -313,9 +309,8 @@ class CategoryService:
         Returns
         -------
             If there are transactions with that id_cat a list of TransactionOut instances
-            is returned. Otherwise, the corresponding job_id is returned.
-            At the beginning the job_status will be pending. When the worker thread
-            finished the operation, the job status get updated.
+            is returned. In that case the category is not deleted. Otherwise nothing
+            is returned.
 
         Raises
         ------
@@ -377,7 +372,10 @@ class CategoryService:
                 args = (id_cat,)
                 task_queue.put((DELETE_CAT_TASK_NAME, job_id, args), block=True)
 
-                return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
@@ -385,6 +383,6 @@ class CategoryService:
                 """The category with the given id is not present in the database."""
             ) from e
 
-        except (RepositoryError, Exception) as e:
+        except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

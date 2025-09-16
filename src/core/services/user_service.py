@@ -12,7 +12,7 @@ from src.core.exceptions import (
     UsernameAlreadyPresentError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import job_manager
+from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
 from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import ADD_USER_TASK_NAME, DELETE_USER_TASK_NAME, EDIT_USER_TASK_NAME
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class UserService:
-    def add(self, uow: AbstractUnitOfWork, username: str, password: str) -> str:
+    def add(self, uow: AbstractUnitOfWork, username: str, password: str) -> int:
         """Add a users to the database.
 
         Parameters
@@ -30,8 +30,7 @@ class UserService:
 
         Returns
         -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
+            The id_user is returned
 
         Raises
         ------
@@ -70,11 +69,17 @@ class UserService:
                 raise UsernameAlreadyPresentError("Username already in use")
 
             job_manager.add_job(job_id)
-
             args = (username, hashed_password)
             task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, result = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
+
+            id_user = result["id_user"]
+
+            return id_user
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -161,7 +166,7 @@ class UserService:
         new_username: str | None,
         new_password: str | None,
         old_password: str | None,
-    ) -> str:
+    ) -> None:
         """Edit a User present in the database.
 
         The only parameter that can be changed are:
@@ -183,11 +188,6 @@ class UserService:
             - old_password (str) : current_password of the user. Can be None only if
                 editing the username. If the password is to be modified, this
                 parameter is required.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -255,24 +255,22 @@ class UserService:
             args = (id_user, username, password)
             task_queue.put((EDIT_USER_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_user: int, current_password: str) -> str:
+    def delete(self, uow: AbstractUnitOfWork, id_user: int, current_password: str) -> None:
         """Delete a User from the database if the given password is correct.
 
         Parameters
         ----------
             - id_user (int) : id of the User to be deleted.
             - current_password (str) : current password of the user.
-
-        Returns
-        -------
-            The corresponding job_id. At the beginning the job_status will be pending.
-            When the worker thread finished the operation, the job status get updated.
 
         Raises
         ------
@@ -312,7 +310,10 @@ class UserService:
             args = (id_user,)
             task_queue.put((DELETE_USER_TASK_NAME, job_id, args), block=True)
 
-            return job_id
+            status, _ = check_status(job_id)
+            if status == FAILED_CODE or status == UNKNOWN_CODE:
+                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
+                raise ServiceError(f"Service error - job_status:{status} ")
 
         except RepositoryError as e:
             logger.exception(str(e))

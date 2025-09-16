@@ -213,7 +213,7 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
         logger.info("Exchange rate's update terminated successfully")
 
-    except (RepositoryError, Exception) as e:
+    except RepositoryError as e:
         logger.exception(str(e))
         raise ServiceError("an unexpected system error occurred.") from e
 
@@ -372,6 +372,6 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
         logger.info("Adding exchange rate's operation terminated successfully")
 
-    except (RepositoryError, Exception) as e:
+    except RepositoryError as e:
         logger.exception(str(e))
         raise ServiceError("An unexpected system error occurred.") from e

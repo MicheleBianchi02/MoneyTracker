@@ -17,7 +17,6 @@ from src.core.exceptions import (
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.user_setting_service import UserSettingService
 from src.infrastructure.dependencies import get_uow
-from src.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, UNKNOWN_CODE, check_status
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 setting_service = UserSettingService()
@@ -27,7 +26,6 @@ setting_service = UserSettingService()
 def add_or_update_setting(
     setting_name: str = Body(...),
     value: int | float | str | bool = Body(...),
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -35,18 +33,9 @@ def add_or_update_setting(
     Adds or updates a user-specific setting.
     """
     try:
-        job_id = setting_service.add(uow, id_user, setting_name, value)
+        setting_service.add(uow, id_user, setting_name, value)
 
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Setting added successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
-
-        else:
-            return job_id
+        return {"message": "Setting added successfully."}
 
     except ServiceSettingNotFoundError:
         raise SettingNotFoundException()
@@ -89,7 +78,6 @@ def get_settings(
 def add_currency(
     currency_code: str = Body(...),
     currency_symbol: str | None = Body(None),
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -97,17 +85,8 @@ def add_currency(
     Adds a currency for a user.
     """
     try:
-        job_id = setting_service.add_currency(uow, id_user, currency_code, currency_symbol)
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Setting edited successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
-
-        else:
-            return job_id
+        setting_service.add_currency(uow, id_user, currency_code, currency_symbol)
+        return {"message": "Setting edited successfully."}
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()
@@ -149,7 +128,6 @@ def get_currencies(
 @router.delete("/currencies/", status_code=204)
 def delete_currency(
     currency_code: str,
-    wait_response: bool = True,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -157,17 +135,8 @@ def delete_currency(
     Deletes a user currency.
     """
     try:
-        job_id = setting_service.delete_currency(uow, id_user, currency_code)
-        if wait_response:
-            status, _ = check_status(job_id)
-
-            if status == COMPLETED_CODE:
-                return {"message": "Setting deleted successfully."}
-            elif status == FAILED_CODE or status == UNKNOWN_CODE:
-                raise InternalServerErrorException()
-
-        else:
-            return job_id
+        setting_service.delete_currency(uow, id_user, currency_code)
+        return {"message": "Setting deleted successfully."}
     except CurrencyNotFoundError:
         raise BadRequestException()
     except ServiceError:
