@@ -35,9 +35,7 @@ class UserRepository(AbstractUserRepository):
 
         except sqlite3.DatabaseError as e:
             if "UNIQUE constraint failed" in str(e):
-                raise DuplicateEntityError(
-                    f"Unique constrainnt error on username:{username}"
-                ) from e
+                raise DuplicateEntityError(f"Unique constraint error on username:{username}") from e
 
             raise RepositoryError("Error while adding users to the database.") from e
 
