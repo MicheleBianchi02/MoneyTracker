@@ -1,6 +1,5 @@
 import calendar
 import logging
-import uuid
 from datetime import date
 
 from src.core.domain.exchange_rate import ExchangeRate
@@ -24,12 +23,8 @@ from src.core.services.exc_rate_service import exc_rate_service
 from src.core.services.startup import EXC_DATE_CONFIG_NAME
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from src.infrastructure.job_manager import (
-    FAILED_CODE,
-    UNKNOWN_CODE,
-    check_status,
-    job_manager,
+    complete_task,
 )
-from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import (
     ADD_EXC_RATE_TASK_NAME,
     ADD_TR_TASK_NAME,
@@ -77,8 +72,6 @@ class TransactionService:
         logger.info(f"Adding {len(list(transaction_list))} transactions to the database")
 
         try:
-            job_id = str(uuid.uuid4())
-
             with unit_of_work as uow:
                 try:
                     uow.user.validate_id_user(id_user)
@@ -131,14 +124,8 @@ class TransactionService:
 
                 exc_rates = self._get_missing_exchange_rate(uow, date_list)
 
-            job_manager.add_job(job_id)
             args = (exc_rates, valid_tr_list)
-            task_queue.put((ADD_TR_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(ADD_TR_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -369,7 +356,6 @@ class TransactionService:
             logger.error(f"{str(e)} : Adding missing exchange rates.")
 
             try:
-                job_id = str(uuid.uuid4())
                 with uow:
                     tr_list, _ = uow.transaction.get(
                         id_user=id_user,
@@ -385,15 +371,8 @@ class TransactionService:
                     exc_rates = self._get_missing_exchange_rate(uow, date_list)
 
                     # add exchange rates using the worker
-                    job_manager.add_job(job_id)
                     args = (exc_rates,)
-                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
-                    status, _ = check_status(job_id)
-                    if status == FAILED_CODE or status == UNKNOWN_CODE:
-                        logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                        raise ServiceError(
-                            f"Service error - job_status:{status}, job_id:{job_id}",
-                        )
+                    complete_task(ADD_EXC_RATE_TASK_NAME, args)
 
                     summary, is_valid = uow.transaction.get_summary(
                         id_user,
@@ -483,7 +462,6 @@ class TransactionService:
             raise ServiceInvalidCurrencyError()
 
         try:
-            job_id = str(uuid.uuid4())
             with uow:
                 tr = uow.transaction.get_by_id_tr(id_tr)
 
@@ -536,14 +514,8 @@ class TransactionService:
 
                 exc_rates = self._get_missing_exchange_rate(uow, [new_tr.tr_date])
 
-            job_manager.add_job(job_id)
-
             args = (id_tr, new_tr, exc_rates)
-            task_queue.put((EDIT_TR_TASK_NAME, job_id, args), block=True)
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(EDIT_TR_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -570,8 +542,6 @@ class TransactionService:
         logger.info("Deleting transaction")
 
         try:
-            job_id = str(uuid.uuid4())
-
             with uow:
                 tr = uow.transaction.get_by_id_tr(id_tr)
 
@@ -585,13 +555,8 @@ class TransactionService:
                     """The transaction with the given id is not present in the database."""
                 )
 
-            job_manager.add_job(job_id)
             args = (id_tr,)
-            task_queue.put((DELETE_TR_TASK_NAME, job_id, args), block=True)
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(DELETE_TR_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))

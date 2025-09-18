@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 from argon2 import PasswordHasher
 
@@ -12,8 +11,9 @@ from src.core.exceptions import (
     UsernameAlreadyPresentError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
-from src.infrastructure.task_queue import task_queue
+from src.infrastructure.job_manager import (
+    complete_task,
+)
 from src.infrastructure.worker import ADD_USER_TASK_NAME, DELETE_USER_TASK_NAME, EDIT_USER_TASK_NAME
 
 logger = logging.getLogger(__name__)
@@ -47,8 +47,6 @@ class UserService:
 
         logger.info("Saving new user")
 
-        job_id = str(uuid.uuid4())
-
         try:
             try:
                 ph = PasswordHasher()
@@ -68,14 +66,8 @@ class UserService:
                 logger.info(f"The username:{username} is already present in the database")
                 raise UsernameAlreadyPresentError("Username already in use")
 
-            job_manager.add_job(job_id)
             args = (username, hashed_password)
-            task_queue.put((ADD_USER_TASK_NAME, job_id, args), block=True)
-
-            status, result = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            result = complete_task(ADD_USER_TASK_NAME, args)
 
             id_user = result["id_user"]
 
@@ -199,7 +191,6 @@ class UserService:
         """
 
         logger.info("Editing user")
-        job_id = str(uuid.uuid4())
 
         try:
             with uow:
@@ -250,15 +241,8 @@ class UserService:
             else:
                 username = user.username
 
-            job_manager.add_job(job_id)
-
             args = (id_user, username, password)
-            task_queue.put((EDIT_USER_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(EDIT_USER_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -282,7 +266,6 @@ class UserService:
 
         logger.info(f"Deleting user with id_user: {id_user}")
 
-        job_id = str(uuid.uuid4())
         try:
             with uow:
                 user = uow.user.get_by_id(id_user)
@@ -305,15 +288,8 @@ class UserService:
                     "The current password doesn't match the provided old_password",
                 )
 
-            job_manager.add_job(job_id)
-
             args = (id_user,)
-            task_queue.put((DELETE_USER_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(DELETE_USER_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))

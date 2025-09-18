@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 from src.core.domain.setting import Setting
 from src.core.exceptions import (
@@ -12,8 +11,7 @@ from src.core.exceptions import (
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.exc_rate_service import exc_rate_service
-from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
-from src.infrastructure.task_queue import task_queue
+from src.infrastructure.job_manager import complete_task
 from src.infrastructure.worker import (
     ADD_CURRENCY_TASK_NAME,
     ADD_SETTING_TASK_NAME,
@@ -53,7 +51,6 @@ class UserSettingService:
             f"Adding user setting with name {setting_name} for user with id_user: {id_user}"
         )
 
-        job_id = str(uuid.uuid4())
         try:
             with uow:
                 setting = uow.user_setting.get(None, setting_name)
@@ -62,15 +59,8 @@ class UserSettingService:
                 logger.error(f"Setting with name:{setting_name} not present in the database")
                 raise ServiceSettingNotFoundError("Setting not found")
 
-            job_manager.add_job(job_id)
-
             args = (id_user, setting_name, value)
-            task_queue.put((ADD_SETTING_TASK_NAME, job_id, args), block=True)
-
-            status, result = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(ADD_SETTING_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -154,7 +144,6 @@ class UserSettingService:
             f"to the user with id_user {id_user}"
         )
 
-        job_id = str(uuid.uuid4())
         try:
             with uow:
                 curr_list = uow.user_setting.get_currency_list(id_user)
@@ -172,15 +161,8 @@ class UserSettingService:
                 logger.error(f"{currency_code} is not a valid currency")
                 raise ServiceInvalidCurrencyError()
 
-            job_manager.add_job(job_id)
-
             args = (id_user, currency_code, currency_symbol)
-            task_queue.put((ADD_CURRENCY_TASK_NAME, job_id, args), block=True)
-
-            status, result = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(ADD_CURRENCY_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -238,7 +220,6 @@ class UserSettingService:
         """
 
         logger.info(f"Deleting curerncy: {currency_code} for user with id_user: {id_user}")
-        job_id = str(uuid.uuid4())
 
         try:
             with uow:
@@ -256,15 +237,8 @@ class UserSettingService:
                     "for the user with id_user: {id_user}"
                 )
 
-            job_manager.add_job(job_id)
-
             args = (id_user, currency_code)
-            task_queue.put((DELETE_CURRENCY_TASK_NAME, job_id, args), block=True)
-
-            status, result = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(DELETE_CURRENCY_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))

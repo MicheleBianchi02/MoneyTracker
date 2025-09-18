@@ -20,6 +20,10 @@ from src.core.services.startup import bootstrap_app, startup
 from src.core.services.user_service import UserService
 from src.infrastructure.dependencies import get_uow
 
+# WARNING: this backend works only on one processor, so it is not allowed to use
+# --worker >1 inside uvicorn settings. This beacuse we are using threading.Lock and not
+# multiprocessing.Lock inside the job_manager.
+
 app = FastAPI()
 
 bootstrap_app()

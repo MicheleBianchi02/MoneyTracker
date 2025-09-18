@@ -1,6 +1,10 @@
 import logging
 import time
-from threading import RLock
+import uuid
+from threading import Condition, RLock
+
+from src.core.exceptions import ServiceError
+from src.infrastructure import task_queue
 
 PENDING_CODE = "PENDING"
 COMPLETED_CODE = "COMPLETED"
@@ -20,6 +24,8 @@ class JobStatusManager:
         self._last_cleanup = 0
         self._lock = RLock()
 
+        self.th_condition = Condition(lock=self._lock)
+
     def add_job(self, job_id: str) -> None:
         """Add job. The job_id must be unique (use uuid)"""
         with self._lock:
@@ -32,6 +38,8 @@ class JobStatusManager:
             if job_id in self._status:
                 self._status[job_id] = (status, result)
                 self._journal_status[job_id] += self._update_cleanup_time
+
+                self.th_condition.notify_all()
 
     def get_status(self, job_id: str) -> tuple[str, str | None]:
         """Get status of the job with the given job_id.
@@ -64,37 +72,105 @@ class JobStatusManager:
 job_manager = JobStatusManager()
 
 
-def check_status(job_id: str) -> tuple[str, dict]:
-    """Wait until the job is finished"""
+def check_status(
+    job_id: str,
+    timeout: float = 180,
+    job_manager: JobStatusManager = job_manager,
+) -> tuple[str, dict | None | str]:
+    """Wait until a process, with the given job_id, is finished.
 
-    time_interval = 0.01  # 10 ms
+    Paramters
+    ---------
+        - job_id (str) : job_id of the job in consideration
+        - timeout (float) : after a time greater than timeout is passed from the first
+            check, the process is terminated and an UNKNOWN_CODE is returned.
+        - job_manager (JobStatusManager) : can be provided a different JobStatusManager
+            instance in case the default one is not used. Can be usefull for testing
+            or for multiprocessing.
 
-    # The first time an Unknown code is returned, it is ignored. Can happen when the
-    # job_id is not inserted yet in the dictionary. This should not happen anyway
-    first_time = True
+    Returns
+    -------
+        A tuple containing the status code and the result from the get_status method of
+        the job_manager.
 
-    while True:
-        time.sleep(time_interval)
+    """
 
-        status, result = job_manager.get_status(job_id)
+    start = time.time()
 
-        if status == PENDING_CODE:
-            first_time = False
-            continue
+    th_condition = job_manager.th_condition
 
-        elif status == COMPLETED_CODE:
-            return COMPLETED_CODE, result
+    with th_condition:
+        while True:
+            status, result = job_manager.get_status(job_id)
 
-        elif status == FAILED_CODE:
-            return FAILED_CODE, result
+            if status == COMPLETED_CODE or status == FAILED_CODE:
+                return status, result
 
-        elif status == UNKNOWN_CODE:
-            # This should never happen.
-            if not first_time:
-                logger.error(f"The job with id {job_id} has been deleted")
-                return UNKNOWN_CODE, result
-            else:
-                first_time = False
-                continue
+            remaining_timeout = timeout - (time.time() - start)
+            if remaining_timeout <= 0:
+                return UNKNOWN_CODE, "timeout"
 
-        time_interval += 0.01
+            if not th_condition.wait(timeout=remaining_timeout):
+                return UNKNOWN_CODE, "timeout"
+
+
+def complete_task(
+    task_name: str,
+    args: tuple,
+    timeout: float = 180,
+    job_manager: JobStatusManager = job_manager,
+) -> str | dict | None:
+    """Add the task to the queue and wait for its end
+
+    Parameters
+    ----------
+        - taks_name (str) : Name of the task. Defined in the worker script
+        - args (tuple) : tuple containing the argument. The order is defined by the
+            worker script
+        - timeout (float) : after a time greater than timeout is passed from the first
+            check, the process is terminated and an UNKNOWN_CODE is returned.
+        - job_manager (JobStatusManager) : can be provided a different JobStatusManager
+            instance in case the default one is not used. Can be usefull for testing
+            or for multiprocessing.
+
+    Returns
+    -------
+        The result parameter is returned. It is taken from the check_status function
+
+    """
+
+    job_id = str(uuid.uuid4())
+
+    job_manager.add_job(job_id)
+    task_queue.add_task(task_name, job_id, args)
+
+    status, result = check_status(job_id, timeout, job_manager)
+    if status == FAILED_CODE or status == UNKNOWN_CODE:
+        # we log result because in case we get unknown because of timeout, it is
+        # written on result
+        logger.error(f"Worker failed - job_status:{status} - job_id:{job_id} - result:{result}")
+        raise ServiceError(f"Service error - job_status:{status} - result:{result}")
+
+    return result
+
+
+def update_status(
+    job_id: int,
+    status_code: str,
+    result: str | dict | None = None,
+    job_manager: JobStatusManager = job_manager,
+) -> None:
+    """Update the job. Used just to not use the job_manager in the worker script
+
+    Parametes
+    ---------
+        - job_id (str) : id of the given job
+        - status_code (str) : Can be COMPLETED or FAILED (defined above)
+        - result (str or None or dict) : result of the operation. For example it
+            can contain the id_user of a new added user. The default value is None
+        - job_manager (JobStatusManager) : can be provided a different JobStatusManager
+            instance in case the default one is not used. Can be usefull for testing
+            or for multiprocessing.
+
+    """
+    job_manager.update_job(job_id, status_code, result)

@@ -1,7 +1,6 @@
 import logging
 import logging.config
 import threading
-import uuid
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -15,9 +14,8 @@ from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from src.core.services.startup_config import app_config
 from src.infrastructure.dependencies import manage_uow
 from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.job_manager import job_manager
+from src.infrastructure.job_manager import complete_task
 from src.infrastructure.sqlite.initializer import initialize_database
-from src.infrastructure.task_queue import task_queue
 from src.infrastructure.worker import (
     ADD_APP_CONFIG_TASK_NAME,
     ADD_EXC_RATE_TASK_NAME,
@@ -172,8 +170,6 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
     """
     exc_provider = ExchangeRateProvider()
 
-    job_id = str(uuid.uuid4())
-
     try:
         with uow:
             first_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
@@ -206,10 +202,8 @@ def _update_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     except ExchangeRateApiError:
                         exc_rates = []
 
-                    job_manager.add_job(job_id)
-
                     args = (exc_rates,)
-                    task_queue.put((EDIT_EXC_RATE_TASK_NAME, job_id, args), block=True)
+                    complete_task(EDIT_EXC_RATE_TASK_NAME, args)
 
         logger.info("Exchange rate's update terminated successfully")
 
@@ -235,8 +229,6 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
     exc_provider = ExchangeRateProvider()
     max_date = exc_provider.maximum_available_date
     currencies = exc_provider.available_currencies
-
-    job_id = str(uuid.uuid4())
 
     try:
         with uow:
@@ -271,7 +263,6 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
                     not_available_exc = {}
 
                 if exc_rates:
-                    job_id_not_available = str(uuid.uuid4())
                     # In some cases, the exchange rates are not available even if everything
                     # is ok with the server (e.g. for withdrawn currencies like LTL or LVL)
                     if len(not_available_exc.keys()) != 1:
@@ -292,15 +283,13 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                                 exc_rates.append(exc)
 
-                    job_manager.add_job(job_id_not_available)
                     args = (exc_rates,)
-                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id_not_available, args), block=True)
+                    complete_task(ADD_EXC_RATE_TASK_NAME, args)
 
             else:
                 first_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
 
                 if first_date is None:
-                    job_id_date = str(uuid.uuid4())
                     year = date.today().year
 
                     first_date = date(year, 1, 1)
@@ -311,9 +300,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                     first_date_str = f"{year}-01-01"
 
-                    job_manager.add_job(job_id_date)
                     args = (EXC_DATE_CONFIG_NAME, first_date_str)
-                    task_queue.put((ADD_APP_CONFIG_TASK_NAME, job_id_date, args), block=True)
+                    complete_task(ADD_APP_CONFIG_TASK_NAME, args)
 
                 # It can happen that the first_date is present in app_config even if the
                 # exchange rate table is empty. For example if when the first time this function
@@ -365,10 +353,8 @@ def _add_exchange_rate(uow: AbstractUnitOfWork) -> None:
 
                                 exc_rates.append(exc)
 
-                    job_manager.add_job(job_id)
-
                     args = (exc_rates,)
-                    task_queue.put((ADD_EXC_RATE_TASK_NAME, job_id, args), block=True)
+                    complete_task(ADD_EXC_RATE_TASK_NAME, args)
 
         logger.info("Adding exchange rate's operation terminated successfully")
 

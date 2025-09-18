@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 from src.core.domain.category import CategoryIn, CategoryOut
 from src.core.domain.transaction import TransactionOut
@@ -13,8 +12,7 @@ from src.core.exceptions import (
     ServiceError,
 )
 from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import FAILED_CODE, UNKNOWN_CODE, check_status, job_manager
-from src.infrastructure.task_queue import task_queue
+from src.infrastructure.job_manager import complete_task
 from src.infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
 
 logger = logging.getLogger(__name__)
@@ -68,8 +66,6 @@ class CategoryService:
 
         logger.info(f"Adding {len(list(cat_list))} categories into the database.")
         try:
-            job_id = str(uuid.uuid4())
-
             with uow:
                 for cat in cat_list:
                     if cat.primary == "" or cat.secondary == "":
@@ -108,15 +104,8 @@ class CategoryService:
                             "An attemp was made to add an already existing category to the database",
                         )
 
-            job_manager.add_job(job_id)
-
             args = (id_user, cat_list)
-            task_queue.put((ADD_CAT_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(ADD_CAT_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -260,8 +249,6 @@ class CategoryService:
         logger.info("Editing category")
 
         try:
-            job_id = str(uuid.uuid4())
-
             with uow:
                 cat_id_user = uow.category.validate_id_cat(id_cat)
 
@@ -282,15 +269,9 @@ class CategoryService:
             if new_name == "":
                 logger.error("Empty category's primary or secondary is not valid")
                 raise InvalidCategoryError("Empty category's primary or secondary is not valid")
-            job_manager.add_job(job_id)
 
             args = (id_cat, new_name)
-            task_queue.put((EDIT_CAT_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+            complete_task(EDIT_CAT_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -330,8 +311,6 @@ class CategoryService:
         logger.info("Deleting category")
 
         try:
-            job_id = str(uuid.uuid4())
-
             with uow:
                 cat_id_user = uow.category.validate_id_cat(id_cat)
 
@@ -367,15 +346,8 @@ class CategoryService:
                         "Cannot delete a primary with existing secondaries",
                     )
 
-                job_manager.add_job(job_id)
-
                 args = (id_cat,)
-                task_queue.put((DELETE_CAT_TASK_NAME, job_id, args), block=True)
-
-            status, _ = check_status(job_id)
-            if status == FAILED_CODE or status == UNKNOWN_CODE:
-                logger.error(f"Worker failed - job_status:{status} - job_id:{job_id}")
-                raise ServiceError(f"Service error - job_status:{status} ")
+                complete_task(DELETE_CAT_TASK_NAME, args)
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")
