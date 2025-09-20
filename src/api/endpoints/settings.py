@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Body, Depends
 
-from src.api.dependencies import get_id_user
-from src.core.domain.setting import Setting
-from src.core.exceptions import (
+from api.dependencies import get_id_user
+from core.domain.setting import Setting
+from core.exceptions import (
     BadRequestException,
     CurrencyNotFoundError,
     DuplicateCurrencyException,
@@ -14,9 +14,9 @@ from src.core.exceptions import (
     ServiceSettingNotFoundError,
     SettingNotFoundException,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.user_setting_service import UserSettingService
-from src.infrastructure.dependencies import get_uow
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.user_setting_service import UserSettingService
+from infrastructure.dependencies import get_uow
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 setting_service = UserSettingService()

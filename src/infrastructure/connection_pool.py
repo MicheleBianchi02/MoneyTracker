@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from queue import Empty, Full, Queue
 
-from src.core.services.startup_config import app_config
+from core.services.startup_config import app_config
 
 logger = logging.getLogger(__name__)
 

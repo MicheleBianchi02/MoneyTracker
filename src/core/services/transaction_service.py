@@ -2,9 +2,9 @@ import calendar
 import logging
 from datetime import date
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.domain.transaction import TransactionIn, TransactionOut, TransactionRepoIn
-from src.core.exceptions import (
+from core.domain.exchange_rate import ExchangeRate
+from core.domain.transaction import TransactionIn, TransactionOut, TransactionRepoIn
+from core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ExchangeRateApiError,
@@ -18,14 +18,14 @@ from src.core.exceptions import (
     ServiceTransactionNotFoundError,
     ServiceUserNotFoundError,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.exc_rate_service import exc_rate_service
-from src.core.services.startup import EXC_DATE_CONFIG_NAME
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.job_manager import (
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.exc_rate_service import exc_rate_service
+from core.services.startup import EXC_DATE_CONFIG_NAME
+from infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from infrastructure.job_manager import (
     complete_task,
 )
-from src.infrastructure.worker import (
+from infrastructure.worker import (
     ADD_EXC_RATE_TASK_NAME,
     ADD_TR_TASK_NAME,
     DELETE_TR_TASK_NAME,

@@ -4,9 +4,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from src.api.dependencies import get_id_user
-from src.core.domain.transaction import TransactionIn, TransactionOut
-from src.core.exceptions import (
+from api.dependencies import get_id_user
+from core.domain.transaction import TransactionIn, TransactionOut
+from core.exceptions import (
     BadRequestException,
     CategoryNotFoundException,
     ForbiddenException,
@@ -22,9 +22,9 @@ from src.core.exceptions import (
     TransactionNotFoundException,
     UserNotFoundException,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.transaction_service import TransactionService
-from src.infrastructure.dependencies import get_uow
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.transaction_service import TransactionService
+from infrastructure.dependencies import get_uow
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 transaction_service = TransactionService()

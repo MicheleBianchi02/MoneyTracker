@@ -2,9 +2,9 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 
-from src.api.dependencies import get_id_user
-from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.exceptions import (
+from api.dependencies import get_id_user
+from core.domain.category import CategoryIn, CategoryOut
+from core.exceptions import (
     BadRequestException,
     CategoryNotFoundException,
     DuplicateCategoryException,
@@ -19,9 +19,9 @@ from src.core.exceptions import (
     TransactionUseCategoryException,
     UserNotFoundException,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.category_service import CategoryService
-from src.infrastructure.dependencies import get_uow
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.category_service import CategoryService
+from infrastructure.dependencies import get_uow
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 category_service = CategoryService()

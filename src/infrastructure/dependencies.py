@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.connection_pool import connection_pool
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from infrastructure.connection_pool import connection_pool
+from infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 def get_uow() -> AbstractUnitOfWork:

@@ -2,17 +2,17 @@ import collections
 import sqlite3
 from datetime import date, timedelta
 
-from src.core.domain.transaction import TransactionOut, TransactionRepoIn
-from src.core.exceptions import (
+from core.domain.transaction import TransactionOut, TransactionRepoIn
+from core.exceptions import (
     EntityNotFoundError,
     ForeignKeyError,
     InvalidParameterError,
     RepositoryError,
 )
-from src.core.repositories.abstract_transaction_repository import (
+from core.repositories.abstract_transaction_repository import (
     AbstractTransactionRepository,
 )
-from src.infrastructure.sqlite.repositories.categories_repository import CategoryRepository
+from infrastructure.sqlite.repositories.categories_repository import CategoryRepository
 
 # Used ein the get_summary function to substitute the None keys. Because None
 # can't be parsed as a valid json key

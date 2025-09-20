@@ -1,7 +1,7 @@
 import sqlite3
 
-from src.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
-from src.core.repositories.abstract_app_config_repository import AbstractAppConfigRepository
+from core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
+from core.repositories.abstract_app_config_repository import AbstractAppConfigRepository
 
 
 class AppConfigRepostiory(AbstractAppConfigRepository):

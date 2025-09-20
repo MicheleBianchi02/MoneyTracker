@@ -2,14 +2,14 @@ import sqlite3
 import uuid
 from datetime import date
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import (
+from core.domain.exchange_rate import ExchangeRate
+from core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     InvalidParameterError,
     RepositoryError,
 )
-from src.core.repositories.abstract_exchange_rate_repository import AbstractExchangeRateRepository
+from core.repositories.abstract_exchange_rate_repository import AbstractExchangeRateRepository
 
 
 class ExchangeRateRepository(AbstractExchangeRateRepository):

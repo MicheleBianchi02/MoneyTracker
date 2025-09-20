@@ -1,15 +1,15 @@
 import logging
 
-from src.core.exceptions import (
+from core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ForeignKeyError,
     InvalidParameterError,
     RepositoryError,
 )
-from src.infrastructure.dependencies import manage_uow
-from src.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, update_status
-from src.infrastructure.task_queue import get_task
+from infrastructure.dependencies import manage_uow
+from infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, update_status
+from infrastructure.task_queue import get_task
 
 ADD_USER_TASK_NAME = "add_user"
 EDIT_USER_TASK_NAME = "edit_user"

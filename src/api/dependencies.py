@@ -3,9 +3,9 @@ from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 
-from src.api import security
-from src.core.exceptions import UnauthorizedException
-from src.infrastructure.dependencies import manage_uow
+from api import security
+from core.exceptions import UnauthorizedException
+from infrastructure.dependencies import manage_uow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

@@ -1,5 +1,5 @@
-from src.infrastructure.task_queue import task_queue
-from src.infrastructure.worker import END_WORKER_TASK_NAME
+from infrastructure.task_queue import task_queue
+from infrastructure.worker import END_WORKER_TASK_NAME
 
 
 def shutdown() -> None:

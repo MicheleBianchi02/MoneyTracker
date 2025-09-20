@@ -1,6 +1,6 @@
 import sqlite3
 
-from src import default_settings
+import default_settings
 
 
 def initialize_database(connection: sqlite3.Connection) -> None:

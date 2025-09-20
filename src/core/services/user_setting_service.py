@@ -1,7 +1,7 @@
 import logging
 
-from src.core.domain.setting import Setting
-from src.core.exceptions import (
+from core.domain.setting import Setting
+from core.exceptions import (
     CurrencyNotFoundError,
     RepositoryError,
     ServiceDuplicateCurrencyError,
@@ -9,10 +9,10 @@ from src.core.exceptions import (
     ServiceInvalidCurrencyError,
     ServiceSettingNotFoundError,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.exc_rate_service import exc_rate_service
-from src.infrastructure.job_manager import complete_task
-from src.infrastructure.worker import (
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.exc_rate_service import exc_rate_service
+from infrastructure.job_manager import complete_task
+from infrastructure.worker import (
     ADD_CURRENCY_TASK_NAME,
     ADD_SETTING_TASK_NAME,
     DELETE_CURRENCY_TASK_NAME,

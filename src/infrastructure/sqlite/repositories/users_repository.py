@@ -1,8 +1,8 @@
 import sqlite3
 
-from src.core.domain.user import UserOut
-from src.core.exceptions import DuplicateEntityError, RepositoryError
-from src.core.repositories.abstract_user_repository import AbstractUserRepository
+from core.domain.user import UserOut
+from core.exceptions import DuplicateEntityError, RepositoryError
+from core.repositories.abstract_user_repository import AbstractUserRepository
 
 # NOTE: This part save the password as plain text, meaning that it is needed
 # a script for hashing the password in a more abstract layer of the app (service).

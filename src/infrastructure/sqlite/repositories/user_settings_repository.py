@@ -1,14 +1,14 @@
 import json
 import sqlite3
 
-from src.core.domain.setting import Setting
-from src.core.exceptions import (
+from core.domain.setting import Setting
+from core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ForeignKeyError,
     RepositoryError,
 )
-from src.core.repositories.abstract_user_setting_repository import AbstractUserSettingRepository
+from core.repositories.abstract_user_setting_repository import AbstractUserSettingRepository
 
 
 class UserSettingRepository(AbstractUserSettingRepository):

@@ -3,8 +3,8 @@ import time
 import uuid
 from threading import Condition, RLock
 
-from src.core.exceptions import ServiceError
-from src.infrastructure import task_queue
+from core.exceptions import ServiceError
+from infrastructure import task_queue
 
 PENDING_CODE = "PENDING"
 COMPLETED_CODE = "COMPLETED"

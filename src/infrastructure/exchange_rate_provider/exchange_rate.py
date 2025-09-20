@@ -3,8 +3,8 @@ from datetime import date
 
 import requests
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import ExchangeRateApiError
+from core.domain.exchange_rate import ExchangeRate
+from core.exceptions import ExchangeRateApiError
 
 
 class ExchangeRateProvider:

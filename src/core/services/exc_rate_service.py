@@ -1,4 +1,4 @@
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 
 
 class ExchangeRateService:

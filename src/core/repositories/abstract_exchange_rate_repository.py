@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import date
 
-from src.core.domain.exchange_rate import ExchangeRate
+from core.domain.exchange_rate import ExchangeRate
 
 
 class AbstractExchangeRateRepository(ABC):

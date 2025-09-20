@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-# from src.core.exceptions import InvalidCurrencyException
-# from src.core.services.exc_rate_service import exc_rate_service
+# from core.exceptions import InvalidCurrencyException
+# from core.services.exc_rate_service import exc_rate_service
 
 
 @dataclass

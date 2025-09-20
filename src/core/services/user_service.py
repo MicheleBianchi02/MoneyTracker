@@ -2,19 +2,19 @@ import logging
 
 from argon2 import PasswordHasher
 
-from src.core.domain.user import UserOut
-from src.core.exceptions import (
+from core.domain.user import UserOut
+from core.exceptions import (
     OperationNotPermittedError,
     RepositoryError,
     ServiceError,
     ServiceUserNotFoundError,
     UsernameAlreadyPresentError,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import (
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from infrastructure.job_manager import (
     complete_task,
 )
-from src.infrastructure.worker import ADD_USER_TASK_NAME, DELETE_USER_TASK_NAME, EDIT_USER_TASK_NAME
+from infrastructure.worker import ADD_USER_TASK_NAME, DELETE_USER_TASK_NAME, EDIT_USER_TASK_NAME
 
 logger = logging.getLogger(__name__)
 

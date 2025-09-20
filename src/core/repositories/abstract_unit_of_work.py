@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod, abstractproperty
 
-from src.core.repositories.abstract_app_config_repository import AbstractAppConfigRepository
-from src.core.repositories.abstract_category_repository import AbstractCategoryRepository
-from src.core.repositories.abstract_exchange_rate_repository import AbstractExchangeRateRepository
-from src.core.repositories.abstract_transaction_repository import AbstractTransactionRepository
-from src.core.repositories.abstract_user_repository import AbstractUserRepository
-from src.core.repositories.abstract_user_setting_repository import AbstractUserSettingRepository
+from core.repositories.abstract_app_config_repository import AbstractAppConfigRepository
+from core.repositories.abstract_category_repository import AbstractCategoryRepository
+from core.repositories.abstract_exchange_rate_repository import AbstractExchangeRateRepository
+from core.repositories.abstract_transaction_repository import AbstractTransactionRepository
+from core.repositories.abstract_user_repository import AbstractUserRepository
+from core.repositories.abstract_user_setting_repository import AbstractUserSettingRepository
 
 
 class AbstractUnitOfWork(ABC):

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.core.domain.user import UserOut
+from core.domain.user import UserOut
 
 
 class AbstractUserRepository(ABC):

@@ -1,8 +1,8 @@
 import logging
 
-from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.domain.transaction import TransactionOut
-from src.core.exceptions import (
+from core.domain.category import CategoryIn, CategoryOut
+from core.domain.transaction import TransactionOut
+from core.exceptions import (
     EntityNotFoundError,
     InvalidCategoryError,
     OperationNotPermittedError,
@@ -11,9 +11,9 @@ from src.core.exceptions import (
     ServiceDuplicateCategoryError,
     ServiceError,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.job_manager import complete_task
-from src.infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from infrastructure.job_manager import complete_task
+from infrastructure.worker import ADD_CAT_TASK_NAME, DELETE_CAT_TASK_NAME, EDIT_CAT_TASK_NAME
 
 logger = logging.getLogger(__name__)
 

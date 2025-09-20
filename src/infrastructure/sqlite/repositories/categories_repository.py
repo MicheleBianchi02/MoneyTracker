@@ -1,14 +1,14 @@
 import sqlite3
 
-from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.exceptions import (
+from core.domain.category import CategoryIn, CategoryOut
+from core.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ForeignKeyError,
     InvalidParameterError,
     RepositoryError,
 )
-from src.core.repositories.abstract_category_repository import AbstractCategoryRepository
+from core.repositories.abstract_category_repository import AbstractCategoryRepository
 
 
 class CategoryRepository(AbstractCategoryRepository):

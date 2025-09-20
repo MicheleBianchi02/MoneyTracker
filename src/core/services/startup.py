@@ -1,22 +1,25 @@
+import json
 import logging
 import logging.config
+import os
+import socket
 import threading
 from collections import defaultdict
 from datetime import date, timedelta
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import (
+from core.domain.exchange_rate import ExchangeRate
+from core.exceptions import (
     ExchangeRateApiError,
     RepositoryError,
     ServiceError,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.startup_config import app_config
-from src.infrastructure.dependencies import manage_uow
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.job_manager import complete_task
-from src.infrastructure.sqlite.initializer import initialize_database
-from src.infrastructure.worker import (
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.startup_config import app_config
+from infrastructure.dependencies import manage_uow
+from infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from infrastructure.job_manager import complete_task
+from infrastructure.sqlite.initializer import initialize_database
+from infrastructure.worker import (
     ADD_APP_CONFIG_TASK_NAME,
     ADD_EXC_RATE_TASK_NAME,
     EDIT_EXC_RATE_TASK_NAME,
@@ -27,6 +30,14 @@ from src.infrastructure.worker import (
 # from which the exchange rate started to get saved. This string should never change.
 EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 
+# If the server is kept running, the exchange rates need to be updated after a given time.
+EXC_ADD_INTERVAL_SECONDS = 10 * 60 * 60  # 10 hours
+EXC_ADD_INTERVAL_SECONDS = 10
+
+
+HOST_KEY = "host"
+PORT_KEY = "port"
+LOG_LEVEL_KEY = "log_level"  # log level for uvicorn, not the server
 
 # TODO: If the exchange rates for some currencies will never be found (eg for withdrawn
 # currencies like LTL or LVL) we are continuing to add not_updated exchange rate with
@@ -43,10 +54,16 @@ EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 logger = logging.getLogger(__name__)
 
 
-def bootstrap_app() -> None:
-    """Handle application startup configuration."""
+def bootstrap_app() -> dict[str, str]:
+    """Handle application startup configuration.
+    The configuration file in the config folder is read (if not present it's created)
+    and the read settings are returned. If the host is null, the localhost "127.0.0.1" is
+    used. If the port is null, the port will be found automatically, in the dictionary
+    the value is represented as a string, not a int. If the log_level is null, "info"
+    is used.
+    """
 
-    LOG_FILE = app_config.get_log_file()
+    log_file = app_config.get_log_file()
 
     LOGGING_CONFIG = {
         "version": 1,
@@ -70,7 +87,7 @@ def bootstrap_app() -> None:
             },
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
-                "filename": f"{LOG_FILE}",
+                "filename": f"{log_file}",
                 "maxBytes": 1024 * 1024 * 5,  # 5 MB
                 "backupCount": 5,
                 "formatter": "detailed",
@@ -87,10 +104,37 @@ def bootstrap_app() -> None:
 
     logging.config.dictConfig(LOGGING_CONFIG)
 
+    config_file = app_config.get_config_file()
+    if not os.path.exists(config_file):
+        with open(config_file, "w") as f:
+            d = {
+                HOST_KEY: None,
+                PORT_KEY: None,
+                LOG_LEVEL_KEY: None,
+            }
+            json.dump(d, f)
 
-# TODO: Add a thread that run the update and add exchange rate's function after a
-# certain time (eg 5 hours). In this way the backend can run indefinetly without
-# any problems.
+    with open(config_file, mode="r") as file:
+        settings: dict = json.load(file)
+
+    host = settings.get(HOST_KEY, None)
+    port = settings.get(PORT_KEY, None)
+    log_level = settings.get(LOG_LEVEL_KEY, None)
+
+    if host is None:
+        host = "127.0.0.1"  # localhost
+        settings[HOST_KEY] = host
+
+    if port is None:
+        # get an unused port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, 0))
+            settings[PORT_KEY] = str(s.getsockname()[1])
+
+    if log_level is None:
+        settings[LOG_LEVEL_KEY] = "info"
+
+    return settings
 
 
 def startup() -> None:
@@ -119,7 +163,7 @@ def startup() -> None:
         logger.info("Running startup service")
 
         startup_thread = threading.Thread(
-            target=_startup_thread,
+            target=_fill_exch,
             daemon=True,
         )
 
@@ -137,6 +181,26 @@ def startup() -> None:
     except Exception as e:
         logger.exception(str(e))
         raise ServiceError("An unexpected system error occurred.") from e
+
+
+def _fill_exch() -> None:
+    try:
+        logger.info("Adding new exchange rates to the database")
+        with manage_uow() as uow:
+            _add_exchange_rate(uow)
+        logger.info("Updating old exchange rates")
+        with manage_uow() as uow:
+            _update_exchange_rate(uow)
+
+    except Exception as e:
+        logger.exception(str(e))
+
+    # After the given interval call this function again. The timer belowe
+    # will create a new thread, but the first thread that call this function
+    # will be closed, meaning that the number of thread will be costant
+    # over time (except after this command and just before finishing
+    # the function)
+    threading.Timer(EXC_ADD_INTERVAL_SECONDS, _fill_exch).start()
 
 
 def _startup_thread() -> None:

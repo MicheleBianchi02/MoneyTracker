@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.core.domain.setting import Setting
+from core.domain.setting import Setting
 
 
 class AbstractUserSettingRepository(ABC):

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.core.domain.category import CategoryIn, CategoryOut
+from core.domain.category import CategoryIn, CategoryOut
 
 
 class AbstractCategoryRepository(ABC):

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import date
 
-from src.core.domain.transaction import TransactionOut, TransactionRepoIn
+from core.domain.transaction import TransactionOut, TransactionRepoIn
 
 
 class AbstractTransactionRepository(ABC):

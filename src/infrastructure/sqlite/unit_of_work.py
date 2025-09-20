@@ -1,12 +1,12 @@
 import sqlite3
 
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.infrastructure.sqlite.repositories.app_config_repository import AppConfigRepostiory
-from src.infrastructure.sqlite.repositories.categories_repository import CategoryRepository
-from src.infrastructure.sqlite.repositories.exchange_rate_repository import ExchangeRateRepository
-from src.infrastructure.sqlite.repositories.transaction_repository import TransactionRepository
-from src.infrastructure.sqlite.repositories.user_settings_repository import UserSettingRepository
-from src.infrastructure.sqlite.repositories.users_repository import UserRepository
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from infrastructure.sqlite.repositories.app_config_repository import AppConfigRepostiory
+from infrastructure.sqlite.repositories.categories_repository import CategoryRepository
+from infrastructure.sqlite.repositories.exchange_rate_repository import ExchangeRateRepository
+from infrastructure.sqlite.repositories.transaction_repository import TransactionRepository
+from infrastructure.sqlite.repositories.user_settings_repository import UserSettingRepository
+from infrastructure.sqlite.repositories.users_repository import UserRepository
 
 
 class UnitOfWork(AbstractUnitOfWork):

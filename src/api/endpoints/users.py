@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from src.api.dependencies import get_id_user
-from src.core.domain.user import UserDeleteConfirmation, UserEdit, UserIn, UserOut
-from src.core.exceptions import (
+from api.dependencies import get_id_user
+from core.domain.user import UserDeleteConfirmation, UserEdit, UserIn, UserOut
+from core.exceptions import (
     DuplicateUserException,
     InternalServerErrorException,
     OperationNotPermittedError,
@@ -12,9 +12,9 @@ from src.core.exceptions import (
     UsernameAlreadyPresentError,
     UserNotFoundException,
 )
-from src.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from src.core.services.user_service import UserService
-from src.infrastructure.dependencies import get_uow
+from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from core.services.user_service import UserService
+from infrastructure.dependencies import get_uow
 
 router = APIRouter(prefix="/users", tags=["Users"])
 user_service = UserService()
