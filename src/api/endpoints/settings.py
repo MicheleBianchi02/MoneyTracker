@@ -40,7 +40,7 @@ def add_or_update_setting(
     except ServiceSettingNotFoundError:
         raise SettingNotFoundException()
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
 
 
 @router.get("/default/", response_model=list[Setting])
@@ -107,7 +107,7 @@ def get_available_currencies(
         return setting_service.get_currency_list(uow, None)
 
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
 
 
 @router.get("/currencies/", response_model=list[tuple[str, str | None]])
@@ -122,7 +122,7 @@ def get_currencies(
         return setting_service.get_currency_list(uow, id_user)
 
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
 
 
 @router.delete("/currencies/", status_code=204)

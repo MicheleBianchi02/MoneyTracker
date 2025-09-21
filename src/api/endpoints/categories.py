@@ -64,7 +64,7 @@ def get_primary_categories(
     try:
         return category_service.get_primary_list(uow, id_user, year, cat_type)
     except ServiceError:
-        raise InternalServerErrorException
+        raise InternalServerErrorException()
 
 
 @router.get("/secondary/", response_model=list[CategoryOut])

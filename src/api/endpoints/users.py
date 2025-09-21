@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from api.dependencies import get_id_user
+from api.security import Token, create_access_token
 from core.domain.user import UserDeleteConfirmation, UserEdit, UserIn, UserOut
 from core.exceptions import (
     DuplicateUserException,
@@ -31,7 +32,13 @@ def add_user(
     try:
         id_user = user_service.add(uow, user.username, user.password)
 
-        return {"message": "User created successfully", "id_user": id_user}
+        data = {"sub": id_user}
+        # TODO: keep this in sync with the login_for_access_token function.
+        # Add expiration date
+        token = create_access_token(data)
+        token = Token(access_token=token, token_type="bearer")
+
+        return {"message": "User created successfully", "id_user": id_user, **token.model_dump()}
 
     except UsernameAlreadyPresentError:
         raise DuplicateUserException()

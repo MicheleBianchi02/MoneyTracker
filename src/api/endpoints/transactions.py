@@ -50,7 +50,7 @@ def add_transaction(
 
     try:
         transaction_service.add_transaction(uow, id_user, transaction)
-        return {"message": "Transaction edited successfully."}
+        return {"message": "Transaction created successfully."}
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()
@@ -59,7 +59,7 @@ def add_transaction(
     except ServiceCategoryNotFoundError:
         raise CategoryNotFoundException()
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
 
 
 @router.get("/", response_model=TransactionResponse)
@@ -105,7 +105,7 @@ def get_transactions(
         raise InvalidCurrencyException()
     except OperationNotPermittedError:
         raise BadRequestException()
-    except (ServiceError, Exception):
+    except ServiceError:
         raise InternalServerErrorException()
 
 
@@ -138,7 +138,7 @@ def get_summary(
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()
-    except (ServiceError, ServiceExchangeRateNotFoundError, Exception):
+    except (ServiceError, ServiceExchangeRateNotFoundError):
         raise InternalServerErrorException()
 
 
@@ -165,7 +165,7 @@ def edit_transaction(
     except OperationNotPermittedError:
         raise ForbiddenException()
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
 
 
 @router.delete("/{id_tr}", status_code=204, response_model=None)
@@ -186,4 +186,4 @@ def delete_transaction(
     except OperationNotPermittedError:
         raise ForbiddenException()
     except ServiceError:
-        raise BadRequestException()
+        raise InternalServerErrorException()
