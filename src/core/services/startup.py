@@ -32,12 +32,12 @@ EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 
 # If the server is kept running, the exchange rates need to be updated after a given time.
 EXC_ADD_INTERVAL_SECONDS = 10 * 60 * 60  # 10 hours
-EXC_ADD_INTERVAL_SECONDS = 10
 
 
 HOST_KEY = "host"
 PORT_KEY = "port"
 LOG_LEVEL_KEY = "log_level"  # log level for uvicorn, not the server
+TUI_MODE_KEY = "tui_mode"
 
 # TODO: If the exchange rates for some currencies will never be found (eg for withdrawn
 # currencies like LTL or LVL) we are continuing to add not_updated exchange rate with
@@ -105,21 +105,51 @@ def bootstrap_app() -> dict[str, str]:
     logging.config.dictConfig(LOGGING_CONFIG)
 
     config_file = app_config.get_config_file()
+
+    default_setting = {
+        HOST_KEY: None,
+        PORT_KEY: None,
+        LOG_LEVEL_KEY: None,
+        TUI_MODE_KEY: None,
+    }
+
     if not os.path.exists(config_file):
         with open(config_file, "w") as f:
-            d = {
-                HOST_KEY: None,
-                PORT_KEY: None,
-                LOG_LEVEL_KEY: None,
-            }
-            json.dump(d, f)
+            json.dump(default_setting, f)
 
-    with open(config_file, mode="r") as file:
-        settings: dict = json.load(file)
+    try:
+        with open(config_file, mode="r") as file:
+            settings: dict = json.load(file)
+
+        if (
+            HOST_KEY not in settings
+            or PORT_KEY not in settings
+            or LOG_LEVEL_KEY in settings
+            or TUI_MODE_KEY in settings
+        ):
+            # reading was successfull (no problem with the json) but a parameter is
+            # missing
+            with open(config_file, mode="w") as file:
+                # with "w" the file content is already deleted
+
+                settings[HOST_KEY] = settings.get(HOST_KEY, None)
+                settings[PORT_KEY] = settings.get(PORT_KEY, None)
+                settings[LOG_LEVEL_KEY] = settings.get(LOG_LEVEL_KEY, None)
+                settings[TUI_MODE_KEY] = settings.get(TUI_MODE_KEY, None)
+
+                json.dump(settings, file)
+
+    except Exception as e:
+        # enter if there is a problem with the json (eg missing })
+        logger.exception(str(e))
+        with open(config_file, mode="w") as file:
+            json.dump(default_setting, file)
+            settings = default_setting
 
     host = settings.get(HOST_KEY, None)
     port = settings.get(PORT_KEY, None)
     log_level = settings.get(LOG_LEVEL_KEY, None)
+    tui_mode = settings.get(TUI_MODE_KEY, None)
 
     if host is None:
         host = "127.0.0.1"  # localhost
@@ -201,15 +231,6 @@ def _fill_exch() -> None:
     # over time (except after this command and just before finishing
     # the function)
     threading.Timer(EXC_ADD_INTERVAL_SECONDS, _fill_exch).start()
-
-
-def _startup_thread() -> None:
-    logger.info("Adding new exchange rates to the database")
-    with manage_uow() as uow:
-        _add_exchange_rate(uow)
-    logger.info("Updating old exchange rates")
-    with manage_uow() as uow:
-        _update_exchange_rate(uow)
 
 
 # In the _add_exchange_rate function, if the connection isn't present (or something else

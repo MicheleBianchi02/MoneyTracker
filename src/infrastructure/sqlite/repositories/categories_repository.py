@@ -87,7 +87,7 @@ class CategoryRepository(AbstractCategoryRepository):
 
                     # add secondary
                     parameters = (
-                        cat.id_user,
+                        id_user,
                         cat.year,
                         cat.secondary,
                         id_prim,

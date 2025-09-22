@@ -1,8 +1,8 @@
 from rich.console import Console
 
-from src.tui.pages.dashboard_tab import DashboardPage
-from src.tui.pages.expense_tab import ExpensePage
-from src.tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page
+from tui.pages.dashboard_tab import DashboardPage
+from tui.pages.expense_tab import ExpensePage
+from tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page
 
 
 class MenuPage(Page):

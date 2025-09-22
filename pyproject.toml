@@ -3,24 +3,24 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "my_package"
+name = "MoneyTracker"
 version = "0.1.0"
 description = "A short description of my project"
 authors = [
   { name="Michele Bianchi"}
 ]
+license = "GNU GENERAL PUBLIC LICENSE V3"
+license-files = ["LICEN[CS]E.*"]
 readme = "README.md"
-license = { file = "LICENSE" }
 requires-python = ">=3.12.3"
 dependencies = [
 "pydantic==2.11.7",
 "pytest==8.3.5",
-"Requests==2.32.4]"
+"Requests==2.32.4"
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["."]
-pythonpath = ["."]
+testpaths = ["test"]
 
 
 [tool.ruff]

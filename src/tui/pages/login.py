@@ -3,11 +3,11 @@ import time
 from rich.console import Console
 from rich.prompt import Prompt
 
-from src.core.services.user_service import UserService
-from src.infrastructure.dependencies import get_uow
-from src.tui.pages.menu import MenuPage
-from src.tui.pages.sign_up import SignUpPage
-from src.tui.utils import DASHBOARD_TAB, Page, clear_screen
+from core.services.user_service import UserService
+from infrastructure.dependencies import get_uow
+from tui.pages.menu import MenuPage
+from tui.pages.sign_up import SignUpPage
+from tui.utils import DASHBOARD_TAB, Page, clear_screen
 
 user_service = UserService()
 

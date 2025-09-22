@@ -2,13 +2,13 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.tree import Tree
 
-from src.core.exceptions import ServiceError, UsernameAlreadyPresentError
-from src.core.services.user_service import UserService
-from src.core.services.user_setting_service import UserSettingService
-from src.default_settings import DEFAULT_CURRENCY_NAME
-from src.infrastructure.dependencies import get_uow
-from src.tui.pages.menu import MenuPage
-from src.tui.utils import DASHBOARD_TAB, Page, clear_screen
+from core.exceptions import ServiceError, UsernameAlreadyPresentError
+from core.services.user_service import UserService
+from core.services.user_setting_service import UserSettingService
+from default_settings import DEFAULT_CURRENCY_NAME
+from infrastructure.dependencies import get_uow
+from tui.pages.menu import MenuPage
+from tui.utils import DASHBOARD_TAB, Page, clear_screen
 
 
 class SignUpPage(Page):

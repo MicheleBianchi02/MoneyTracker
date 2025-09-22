@@ -4,13 +4,13 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
-from src.core.services.category_service import CategoryService
-from src.core.services.transaction_service import TransactionService
-from src.core.services.user_setting_service import UserSettingService
-from src.default_settings import DEFAULT_CURRENCY_NAME
-from src.infrastructure.dependencies import get_uow
-from src.tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page, clear_screen, draw_navigation_tab
-from src.utils import format_value
+from core.services.category_service import CategoryService
+from core.services.transaction_service import TransactionService
+from core.services.user_setting_service import UserSettingService
+from default_settings import DEFAULT_CURRENCY_NAME
+from infrastructure.dependencies import get_uow
+from tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page, clear_screen, draw_navigation_tab
+from utils import format_value
 
 active_tab = EXPENSE_TAB
 

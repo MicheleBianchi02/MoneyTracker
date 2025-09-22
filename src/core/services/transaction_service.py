@@ -16,7 +16,6 @@ from core.exceptions import (
     ServiceExchangeRateNotFoundError,
     ServiceInvalidCurrencyError,
     ServiceTransactionNotFoundError,
-    ServiceUserNotFoundError,
 )
 from core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from core.services.exc_rate_service import exc_rate_service
@@ -73,14 +72,6 @@ class TransactionService:
 
         try:
             with unit_of_work as uow:
-                try:
-                    uow.user.validate_id_user(id_user)
-                except EntityNotFoundError as e:
-                    logger.error(f"{str(e)}")
-                    raise ServiceUserNotFoundError(
-                        f"The provided id_user:{id_user} is not present in the database.",
-                    ) from e
-
                 date_list = []
                 valid_tr_list = []
                 for tr in transaction_list:

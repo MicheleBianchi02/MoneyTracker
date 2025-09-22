@@ -27,15 +27,19 @@ from core.services.shutdown_service import shutdown
 from core.services.startup import HOST_KEY, LOG_LEVEL_KEY, PORT_KEY, bootstrap_app, startup
 from core.services.user_service import UserService
 from infrastructure.dependencies import get_uow
-from tui.main import main
+from tui.main import ALTERNATE_SCREEN_MODE, run_tui
 
 # WARNING: this backend works only on one processor, so it is not allowed to use
 # --worker >1 inside uvicorn settings. This beacuse we are using threading.Lock and not
 # multiprocessing.Lock inside the job_manager.
 
+# This script is run two times. The first when initializing the server, and the
+# second one by uvicorn. So don't put anything here since it will be run two times
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger = logging.getLogger(__name__)
     # Startup tasks
     logger.info("Backend API starting up...")
     startup()
@@ -48,11 +52,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-server_config = bootstrap_app()
-logger = logging.getLogger(__name__)
-
-user_service = UserService()
 
 
 @app.exception_handler(AppException)
@@ -106,18 +105,22 @@ def login_for_access_token(
     uow: AbstractUnitOfWork = Depends(get_uow),
 ) -> Token:
     try:
-        user = user_service.authenticate(uow, form_data.username, form_data.password)
-        if not user:
+        user_service = UserService()
+        is_valid, id_user = user_service.authenticate(uow, form_data.username, form_data.password)
+        if not is_valid:
             raise UnauthorizedException()
 
     except ServiceError:
         raise InternalServerErrorException()
 
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(id_user)})
     return Token(access_token=access_token, token_type="bearer")
 
 
 if __name__ == "__main__":
+    server_config = bootstrap_app()
+
+    # ---
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-t",
@@ -128,8 +131,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.terminal:
-        # TODO: change this
-        main()
+        startup()
+        run_tui(ALTERNATE_SCREEN_MODE)
+        shutdown()
 
     else:
         # Don't need to start the server since the tui uses only the services

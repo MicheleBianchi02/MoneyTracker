@@ -16,7 +16,7 @@ class Token(BaseModel):
     token_type: str
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> Token:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     # only the first layer get copied. If the value is a list, it still point to
     # the original list.
     to_encode = data.copy()
@@ -25,7 +25,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> T
 
         to_encode.update({"exp": expire})
 
-    # If the expiires_delta is None, the expiration date is not checked
+    # If the expires_delta is None, the expiration date is not checked
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
