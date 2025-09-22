@@ -133,3 +133,4 @@ cython_debug/
 # test
 database.db
 logs/
+*.db

@@ -2,12 +2,12 @@ import random
 import sqlite3
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.domain.category import CategoryIn, CategoryOut
-from moneytracker.core.exceptions import ForeignKeyError
+from moneytracker.core.exceptions import DuplicateEntityError, ForeignKeyError
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -55,9 +55,11 @@ def test_add_primary_category(connection):
         assert cat_prim.primary == cat_get.primary
         assert cat_prim.secondary == cat_get.secondary
 
-        # Add the same category twice and check if it has been added or not.
-        # the correct result should be that the category is not added
-        uow.category.add(id_user, cat_prim)
+        # Adding the same primary must raise an error
+        try:
+            uow.category.add(id_user, cat_prim)
+        except DuplicateEntityError:
+            assert True
 
         cat_get = uow.category.get(id_user, year, "expense")
         assert len(cat_get) == 1

@@ -4,7 +4,6 @@ import uuid
 from contextlib import contextmanager
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.domain.category import CategoryIn
 from moneytracker.infrastructure.connection_pool import ConnectionPool
@@ -17,6 +16,7 @@ from moneytracker.infrastructure.worker import (
     END_WORKER_TASK_NAME,
     writer_worker,
 )
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def worker_thread(monkeypatch, connection_pool):
             uow = UnitOfWork(conn)
             yield uow
 
-    monkeypatch.setattr("src.infrastructure.worker.manage_uow", managed_test_uow)
+    monkeypatch.setattr("moneytracker.infrastructure.worker.manage_uow", managed_test_uow)
 
     thread = threading.Thread(target=writer_worker, daemon=True)
     thread.start()

@@ -46,6 +46,8 @@ class CategoryRepository(AbstractCategoryRepository):
                     None,
                 )
 
+                # This will raise an error only if trying to add a primary. Because,
+                # if a secondary is provided, the primary is ignored, if already present
                 if id_prim is not None and cat.secondary is None:
                     raise DuplicateEntityError("Primary already present in the database")
 
