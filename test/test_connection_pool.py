@@ -1,5 +1,5 @@
-from src.infrastructure.connection_pool import ConnectionPool, connection_pool
-from src.infrastructure.dependencies import get_uow, manage_uow
+from moneytracker.infrastructure.connection_pool import ConnectionPool, connection_pool
+from moneytracker.infrastructure.dependencies import get_uow, manage_uow
 
 # Attention: Just by importing the connection_pool module we are creating
 # a pool since an instance of ConnectionPool is created in that script.

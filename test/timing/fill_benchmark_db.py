@@ -5,9 +5,10 @@
 
 from datetime import timedelta
 
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
-from test.util_test import UtilTest
+from util_test import UtilTest
+
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 DB_PATH = "test/timing/benchmark.db"  # same directory of the test
 

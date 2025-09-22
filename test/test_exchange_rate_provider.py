@@ -1,9 +1,10 @@
 from datetime import date, timedelta
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import ExchangeRateApiError
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from test.util_test import UtilTest
+
+from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.exceptions import ExchangeRateApiError
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 
 
 def test_get_exchange_rate_provider():

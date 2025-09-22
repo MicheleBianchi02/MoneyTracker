@@ -4,14 +4,14 @@ import string
 import uuid
 from datetime import date
 
-from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.domain.setting import Setting
-from src.core.domain.transaction import TransactionOut, TransactionRepoIn
-from src.core.domain.user import UserOut
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.sqlite.initializer import initialize_database
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
+from moneytracker.core.domain.category import CategoryIn, CategoryOut
+from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.domain.setting import Setting
+from moneytracker.core.domain.transaction import TransactionOut, TransactionRepoIn
+from moneytracker.core.domain.user import UserOut
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from moneytracker.infrastructure.sqlite.initializer import initialize_database
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 class UtilTest:

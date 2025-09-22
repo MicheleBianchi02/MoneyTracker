@@ -3,14 +3,14 @@ import sqlite3
 from datetime import date
 
 import pytest
-
-from src.core.domain.transaction import TransactionOut
-from src.core.exceptions import OperationNotPermittedError
-from src.core.services.category_service import CategoryService
-from src.core.services.transaction_service import TransactionService
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+from moneytracker.core.domain.transaction import TransactionOut
+from moneytracker.core.exceptions import OperationNotPermittedError
+from moneytracker.core.services.category_service import CategoryService
+from moneytracker.core.services.transaction_service import TransactionService
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 @pytest.fixture

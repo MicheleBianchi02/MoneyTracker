@@ -4,19 +4,19 @@ import uuid
 from contextlib import contextmanager
 
 import pytest
+from test.util_test import UtilTest
 
-from src.core.domain.category import CategoryIn
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.job_manager import complete_task
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
-from src.infrastructure.task_queue import add_task, task_queue
-from src.infrastructure.worker import (
+from moneytracker.core.domain.category import CategoryIn
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.job_manager import complete_task
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from moneytracker.infrastructure.task_queue import add_task, task_queue
+from moneytracker.infrastructure.worker import (
     ADD_CAT_TASK_NAME,
     ADD_USER_TASK_NAME,
     END_WORKER_TASK_NAME,
     writer_worker,
 )
-from test.util_test import UtilTest
 
 
 @pytest.fixture

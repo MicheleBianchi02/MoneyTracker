@@ -2,14 +2,14 @@ import random
 import sqlite3
 
 import pytest
-
-from src import default_settings
-from src.core.domain.setting import Setting
-from src.core.exceptions import DuplicateEntityError, ForeignKeyError
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.sqlite.repositories.user_settings_repository import _convert_value
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+from moneytracker import default_settings
+from moneytracker.core.domain.setting import Setting
+from moneytracker.core.exceptions import DuplicateEntityError, ForeignKeyError
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.sqlite.repositories.user_settings_repository import _convert_value
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 @pytest.fixture

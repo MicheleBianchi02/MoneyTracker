@@ -3,12 +3,12 @@ import sqlite3
 from datetime import date
 
 import pytest
-
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import InvalidParameterError
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.exceptions import InvalidParameterError
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 # NOTE: Currently every test function is calling this function creating a new database,

@@ -4,16 +4,16 @@ import sqlite3
 from datetime import date, timedelta
 
 import pytest
-
-from src.core.domain.category import CategoryIn
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.domain.transaction import TransactionIn
-from src.core.services.startup import EXC_DATE_CONFIG_NAME
-from src.core.services.transaction_service import TransactionService
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+from moneytracker.core.domain.category import CategoryIn
+from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.domain.transaction import TransactionIn
+from moneytracker.core.services.startup import EXC_DATE_CONFIG_NAME
+from moneytracker.core.services.transaction_service import TransactionService
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 @pytest.fixture

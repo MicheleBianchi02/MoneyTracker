@@ -2,12 +2,12 @@ import random
 import sqlite3
 
 import pytest
-
-from src.core.domain.category import CategoryIn, CategoryOut
-from src.core.exceptions import ForeignKeyError
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+from moneytracker.core.domain.category import CategoryIn, CategoryOut
+from moneytracker.core.exceptions import ForeignKeyError
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 @pytest.fixture

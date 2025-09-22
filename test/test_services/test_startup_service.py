@@ -3,19 +3,19 @@ from datetime import date, timedelta
 from random import randint, random
 
 import pytest
+from test.util_test import UtilTest
 
-from src.core.domain.exchange_rate import ExchangeRate
-from src.core.exceptions import ExchangeRateApiError
-from src.core.services.startup import (
+from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.exceptions import ExchangeRateApiError
+from moneytracker.core.services.startup import (
     EXC_DATE_CONFIG_NAME,
     _add_exchange_rate,
     _update_exchange_rate,
     startup,
 )
-from src.infrastructure.connection_pool import ConnectionPool
-from src.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
-from src.infrastructure.sqlite.unit_of_work import UnitOfWork
-from test.util_test import UtilTest
+from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
 # TODO: Test what happen when there is no internet connection
