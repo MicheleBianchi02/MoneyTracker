@@ -237,6 +237,68 @@ class TransactionService:
 
                 return tr_list, is_valid
 
+        except EntityNotFoundError as e:
+            # If an exchange rate is not found, try to add it
+            logger.error(f"{str(e)} : Adding missing exchange rates.")
+
+            try:
+                with uow:
+                    tr_list, _ = uow.transaction.get(
+                        id_user=id_user,
+                        begin_date=begin_date,
+                        end_date=end_date,
+                        tr_type=tr_type,
+                        primary=primary,
+                        secondary=secondary,
+                    )
+
+                    date_list = [tr.tr_date for tr in tr_list]
+
+                    exc_rates = self._get_missing_exchange_rate(uow, date_list)
+
+                    # add exchange rates using the worker
+                    args = (exc_rates,)
+                    complete_task(ADD_EXC_RATE_TASK_NAME, args)
+
+                    tr_list, is_valid = uow.transaction.get(
+                        id_user,
+                        begin_date,
+                        end_date,
+                        to_currency,
+                        tr_type,
+                        primary,
+                        secondary,
+                        order,
+                        order_dir,
+                        limit,
+                        offset,
+                        name,
+                    )
+
+                return tr_list, is_valid
+
+            except EntityNotFoundError as e:
+                logger.error(f"{str(e)}")
+                raise ServiceExchangeRateNotFoundError("An exchange rate is still not found") from e
+
+            except InvalidParameterError as e:
+                logger.error(
+                    "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
+                )
+                raise ServiceError(
+                    "An attempt was made to add an exchange rate with identical "
+                    "from_currency and to_currency parameters, which is not allowed."
+                ) from e
+
+            except DuplicateEntityError as e:
+                logger.error("A duplicate exchange rate was added to the database")
+                raise ServiceError(
+                    "An attempt was made to add an already existing exchange rate",
+                ) from e
+
+            except RepositoryError as e:
+                logger.exception(str(e))
+                raise ServiceError("An unexpected system error occurred.") from e
         except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

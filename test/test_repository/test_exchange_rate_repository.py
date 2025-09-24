@@ -3,17 +3,14 @@ import sqlite3
 from datetime import date
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.domain.exchange_rate import ExchangeRate
 from moneytracker.core.exceptions import InvalidParameterError
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
-# NOTE: Currently every test function is calling this function creating a new database,
-# no error is raised, only warning. This is needed because at every test a clean
-# database is needed
 @pytest.fixture
 def connection() -> sqlite3.Connection:
     """Create isolated database environment for each test.
@@ -85,6 +82,21 @@ def test_add_exchange_rate(connection) -> None:
             uow.exchange_rate.add(exc)
         except InvalidParameterError:
             assert True
+
+        exc_add = random.choice(exc_get)
+        exc_add.is_updated = not exc_add.is_updated
+        uow.exchange_rate.add(exc_add)
+
+        exc_ret = uow.exchange_rate.get(
+            exc_add.rate_date, exc_add.from_currency, exc_add.to_currency
+        )
+
+        exc_ret = exc_ret[0]
+        assert exc_add.from_currency == exc_ret.from_currency
+        assert exc_add.to_currency == exc_ret.to_currency
+        assert exc_add.rate_date == exc_ret.rate_date
+        assert exc_add.rate == exc_ret.rate
+        assert exc_add.is_updated == exc_ret.is_updated
 
 
 def test_get_exchange_rate(connection) -> None:

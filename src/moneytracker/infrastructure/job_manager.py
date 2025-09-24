@@ -137,6 +137,10 @@ def complete_task(
     -------
         The result parameter is returned. It is taken from the check_status function
 
+    Raise
+    -----
+        ServiceError: If A failed or unknown status code is returned
+
     """
 
     job_id = str(uuid.uuid4())
@@ -148,8 +152,12 @@ def complete_task(
     if status == FAILED_CODE or status == UNKNOWN_CODE:
         # we log result because in case we get unknown because of timeout, it is
         # written on result
-        logger.error(f"Worker failed - job_status:{status} - job_id:{job_id} - result:{result}")
-        raise ServiceError(f"Service error - job_status:{status} - result:{result}")
+        logger.error(
+            f"Worker failed - task_name:{task_name} - job_status:{status} - job_id:{job_id} - result:{result}"
+        )
+        raise ServiceError(
+            f"Service error - task_name:{task_name} - job_status:{status} - result:{result}"
+        )
 
     return result
 

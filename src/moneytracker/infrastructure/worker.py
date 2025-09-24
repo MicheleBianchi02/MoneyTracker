@@ -174,6 +174,18 @@ def writer_worker() -> None:
                     exc_rates = args[0]
                     tr_list = args[1]
 
+                    # When two users have to insert a new
+                    # transaction for which the exchange rates are not present,
+                    # the service will get those rates and add them to the worker.
+                    # The problem is that, since the worker is in a separate thread,
+                    # it is possible that the same exchange rates will be missing for
+                    # both requests at the moment of check, and when adding them, the
+                    # second will see that one exchange rate is already present. For
+                    # this reason we added to the repo the ON CONFLICT DO UPDATE clause
+                    # such that, the second will just update the first without raising
+                    # any uniqueness error. This is obviously not the most efficient way
+                    # but we can suppose that this is not very likely to occour.
+
                     with uow:
                         if exc_rates:
                             uow.exchange_rate.add(exc_rates)

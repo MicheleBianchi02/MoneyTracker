@@ -111,6 +111,7 @@ class AbstractTransactionRepository(ABC):
 
         Raises
         ------
+            - EntityNotFoundError: If an exchange rate is not found in the db.
             - InvalidParameterError: If the order or order_dir are not allowed values.
             - RepositoryError: If something went wrong with the database.
 

@@ -35,6 +35,11 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             is_updated)
         VALUES 
             (?, ?, ?, ?, ? )
+        ON CONFLICT
+            (from_currency, to_currency, rate_date)
+        DO UPDATE SET
+            rate = excluded.rate,
+            is_updated = excluded.is_updated;
         """
 
         try:
