@@ -98,6 +98,8 @@ def test_startup_add_from_empty(connection_pool, isolated_worker):
             for exc in exc_get:
                 assert exc.to_currency in active_currencies_code
 
+    worker.end_worker()
+
 
 def test_startup_add_from_filled(connection_pool, isolated_worker):
     """Test adding exchange rate when already present in the database but not up to date."""
@@ -145,6 +147,8 @@ def test_startup_add_from_filled(connection_pool, isolated_worker):
 
             for exc in exc_get:
                 assert exc.to_currency in active_currencies_code
+
+    worker.end_worker()
 
 
 def test_update(connection_pool, isolated_worker):
@@ -215,4 +219,3 @@ def test_update(connection_pool, isolated_worker):
             assert "Empty Response.content" in str(e)
             # If at first try in _update_exchange_rate the rate were not available, it
             # means that requirind them will return an empty content
-

@@ -59,6 +59,8 @@ def test_add_transaction(connection_pool, isolated_worker):
     """In this test we just need to see if the exchange rates are added correctly.
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
 
     tr_service = TransactionService()
     uow = UnitOfWork(connection_pool._get_connection())
@@ -197,6 +199,8 @@ def test_add_transaction(connection_pool, isolated_worker):
                 if exc.to_currency == exc.from_currency:
                     raise AssertionError("Same currency for from_currency and to_currency")
 
+    worker.end_worker()
+
 
 def test_edit_transaction(connection_pool, isolated_worker):
     starting_date = "2025-01-01"
@@ -274,4 +278,3 @@ def test_edit_transaction(connection_pool, isolated_worker):
 
         exc_get = uow.exchange_rate.get(edit_date)
         assert exc_get != []
-

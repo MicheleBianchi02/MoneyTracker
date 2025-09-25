@@ -36,9 +36,7 @@ def isolated_worker(monkeypatch, connection_pool):
     monkeypatch.setattr(task_queue, "task_queue", q)
 
     uow_worker = UnitOfWork(connection_pool._get_connection())
-    worker_thread = threading.Thread(
-        target=worker.writer_worker, args=(uow_worker,), daemon=False
-    )
+    worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
     worker_thread.start()
 
     yield
@@ -69,6 +67,8 @@ def test_add_user(connection_pool: ConnectionPool, isolated_worker):
 
         assert username == user.username
         assert "$argon2id$" in user.password
+
+    worker.end_worker()
 
 
 def test_authenticate(connection_pool, isolated_worker):

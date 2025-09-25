@@ -311,7 +311,6 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
 
             with uow:
                 uow.user_setting.add_user_currency(id_user, currency_code)
-
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 

@@ -40,9 +40,7 @@ def isolated_worker(monkeypatch, connection_pool):
     monkeypatch.setattr(task_queue, "task_queue", q)
 
     uow_worker = UnitOfWork(connection_pool._get_connection())
-    worker_thread = threading.Thread(
-        target=worker.writer_worker, args=(uow_worker,), daemon=False
-    )
+    worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
     worker_thread.start()
 
     yield
@@ -89,6 +87,9 @@ def test_delete_cat_with_tr(connection_pool, isolated_worker):
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
     tr_service = TransactionService()
     cat_service = CategoryService()
 
@@ -126,6 +127,8 @@ def test_delete_cat_with_tr(connection_pool, isolated_worker):
                 cat_get = cat_service.get(uow, cat.id_user, cat.year, cat.category_type)
                 assert cat in cat_get
 
+    worker.end_worker()
+
 
 # --- Utils
 
@@ -144,3 +147,4 @@ def transaction_sort_key(tr: TransactionOut) -> tuple:
         tr.name,
         tr.tr_date,
     )
+
