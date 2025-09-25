@@ -1,5 +1,5 @@
 import random
-import sqlite3
+import threading
 from datetime import date
 
 import pytest
@@ -8,13 +8,14 @@ from moneytracker.core.domain.transaction import TransactionOut
 from moneytracker.core.exceptions import OperationNotPermittedError
 from moneytracker.core.services.category_service import CategoryService
 from moneytracker.core.services.transaction_service import TransactionService
+from moneytracker.infrastructure import worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
 
 
 @pytest.fixture
-def connection(tmp_path) -> sqlite3.Connection:
+def connection_pool(tmp_path) -> ConnectionPool:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -26,15 +27,18 @@ def connection(tmp_path) -> sqlite3.Connection:
 
     # db_path = ":memory:"  # use in memory database
 
-    connection_pool = ConnectionPool(db_path, max_connections=1)
-    with connection_pool.managed_connection() as connection:
-        return connection
+    connection_pool = ConnectionPool(db_path, max_connections=2)
+
+    return connection_pool
 
 
-def test_delete_cat(connection):
+def test_delete_cat(connection_pool: ConnectionPool):
     cat_service = CategoryService()
 
-    uow = UnitOfWork(connection)
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
     with uow:
         UtilTest.init_database(uow)
 
@@ -45,27 +49,38 @@ def test_delete_cat(connection):
     sec_list = cat_service.get_secondary_list(uow, id_user, None, None)
     sec = random.choice(sec_list)
 
+    # deleting primary with existing secondaries
     try:
-        cat_service.delete(uow, sec.id_primary)
+        cat_service.delete(uow, sec.id_primary, id_user)
     except OperationNotPermittedError:
         assert True
 
-    tr_list = cat_service.delete(uow, sec.id_secondary)
-    assert tr_list is None
-    cat_get = cat_service.get(uow, sec.id_user, sec.year, sec.category_type)
-    assert sec not in cat_get
+    cat_sec_list = cat_service.get_secondary_list(uow, id_user, sec.year, sec.primary)
+    for sec in cat_sec_list:
+        tr_list = cat_service.delete(uow, sec.id_secondary, id_user)
+        assert tr_list is None
+        cat_get = cat_service.get(uow, id_user, sec.year, sec.category_type)
+        assert sec not in cat_get
+
+    cat_service.delete(uow, sec.id_primary, id_user)
+    cat_get = cat_service.get_primary_list(uow, id_user, None, None)
+    assert sec.id_primary not in [prim.id_primary for prim in cat_get]
+    worker.end_worker()
 
 
-def test_delete_cat_with_tr(connection):
+def test_delete_cat_with_tr(connection_pool):
     def compare_tr(tr_list, tr_get):
         tr_list = sorted(tr_list, key=transaction_sort_key)
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
     tr_service = TransactionService()
     cat_service = CategoryService()
 
-    with UnitOfWork(connection) as uow:
+    with UnitOfWork(connection_pool._get_connection()) as uow:
         UtilTest.init_database(uow)
         _, cat_tot_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
 
@@ -78,7 +93,7 @@ def test_delete_cat_with_tr(connection):
 
             begin_date = date(cat.year - 1, 1, 1)
             end_date = date(cat.year + 1, 1, 1)
-            tr_list = tr_service.get_transaction(
+            tr_list, _ = tr_service.get_transaction(
                 uow=uow,
                 id_user=cat.id_user,
                 begin_date=begin_date,
@@ -89,7 +104,7 @@ def test_delete_cat_with_tr(connection):
             )
 
             tr_list = [tr for tr in tr_list if tr.tr_date.year == cat.year]
-            tr_get = cat_service.delete(uow, cat.id_secondary)
+            tr_get = cat_service.delete(uow, cat.id_secondary, cat.id_user)
             if tr_list == []:
                 assert tr_get is None
             else:
@@ -98,6 +113,8 @@ def test_delete_cat_with_tr(connection):
                 # cat is not deleted
                 cat_get = cat_service.get(uow, cat.id_user, cat.year, cat.category_type)
                 assert cat in cat_get
+
+    worker.end_worker()
 
 
 # --- Utils

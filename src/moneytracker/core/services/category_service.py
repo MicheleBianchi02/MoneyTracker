@@ -316,9 +316,10 @@ class CategoryService:
 
         try:
             with uow:
-                cat_id_user = uow.category.validate_id_cat(id_cat)
+                cat_id_user, id_parent_cat = uow.category.validate_id_cat(id_cat)
+                # if id_parent_cat is None, it means that the category is a priamry
 
-                if not cat_id_user:
+                if cat_id_user is None:
                     logger.error(
                         f"Category with id_cat:{id_cat} doesn't exist in the database",
                     )
@@ -332,6 +333,17 @@ class CategoryService:
                     )
                     raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
+                if id_parent_cat is None:
+                    sec_list = uow.category.get_secondary_list_by_id(id_cat)
+
+                    if sec_list:
+                        logger.error(
+                            "Cannot delete a primary with existing secondaries",
+                        )
+                        raise OperationNotPermittedError(
+                            "Cannot delete a primary with existing secondaries",
+                        )
+
                 tr_list = uow.transaction.get_by_id_cat(id_cat)
 
                 if tr_list != []:
@@ -340,18 +352,8 @@ class CategoryService:
                     )
                     return tr_list
 
-                sec_list = uow.category.get_secondary_list_by_id(id_cat)
-
-                if sec_list:
-                    logger.info(
-                        "Cannot delete a primary with existing secondaries",
-                    )
-                    raise OperationNotPermittedError(
-                        "Cannot delete a primary with existing secondaries",
-                    )
-
-                args = (id_cat,)
-                complete_task(DELETE_CAT_TASK_NAME, args)
+            args = (id_cat,)
+            complete_task(DELETE_CAT_TASK_NAME, args, timeout=1)
 
         except EntityNotFoundError as e:
             logger.error(f"{str(e)}")

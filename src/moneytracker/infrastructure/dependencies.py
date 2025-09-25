@@ -29,8 +29,8 @@ def manage_uow() -> AbstractUnitOfWork:
 
         >>> connection_pool = ConnectioPool(db_path)
         >>> with manage_uow() as uow:
-        ...     use uow eg in the service
-        ...     or:
+        ...     # use uow eg in the service
+        ...     # or:
         ...     with uow:
         ...         do stuff
 

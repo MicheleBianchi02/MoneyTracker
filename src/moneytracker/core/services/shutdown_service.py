@@ -1,10 +1,8 @@
-from moneytracker.infrastructure.task_queue import task_queue
-from moneytracker.infrastructure.worker import END_WORKER_TASK_NAME
+from moneytracker.infrastructure.worker import end_worker
 
 
 def shutdown() -> None:
-    job_id = "ENDING"
-    task_queue.put((END_WORKER_TASK_NAME, job_id, ()), block=True)
+    end_worker()
 
     # TODO: Add closing db connection. Problem is that we need to wait until the
     # worker thread ended before closing all connections

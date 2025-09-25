@@ -5,6 +5,8 @@ from multiprocessing import Queue
 # the API and the worker access the same queue instance.
 task_queue = Queue()
 
+# TODO: Make shure this is a singleton (created a single time)
+
 
 def add_task(task_name: str, job_id: str, args: tuple) -> None:
     """Add task to the queue

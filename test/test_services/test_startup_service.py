@@ -1,9 +1,8 @@
-import sqlite3
+import threading
 from datetime import date, timedelta
 from random import randint, random
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.domain.exchange_rate import ExchangeRate
 from moneytracker.core.exceptions import ExchangeRateApiError
@@ -11,16 +10,18 @@ from moneytracker.core.services.startup import (
     EXC_DATE_CONFIG_NAME,
     _add_exchange_rate,
     _update_exchange_rate,
-    startup,
 )
+from moneytracker.infrastructure import worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
-
+from test.util_test import UtilTest
 
 # TODO: Test what happen when there is no internet connection
+
+
 @pytest.fixture
-def connection(tmp_path) -> sqlite3.Connection:
+def connection_pool(tmp_path) -> ConnectionPool:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -32,14 +33,15 @@ def connection(tmp_path) -> sqlite3.Connection:
 
     # db_path = ":memory:"  # use in memory database
 
-    connection_pool = ConnectionPool(db_path, max_connections=1)
-    with connection_pool.managed_connection() as connection:
-        return connection
+    return ConnectionPool(db_path, max_connections=2)
 
 
-def test_startup_add_from_empty(connection):
+def test_startup_add_from_empty(connection_pool):
     """Test add exchange rate with empty database"""
-    uow = UnitOfWork(connection)
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
 
     with uow:
         UtilTest.init_database(uow)
@@ -73,10 +75,15 @@ def test_startup_add_from_empty(connection):
 
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
+    worker.end_worker()
 
-def test_startup_add_from_filled(connection):
+
+def test_startup_add_from_filled(connection_pool):
     """Test adding exchange rate when already present in the database but not up to date."""
-    uow = UnitOfWork(connection)
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
 
     with uow:
         UtilTest.init_database(uow)
@@ -110,9 +117,15 @@ def test_startup_add_from_filled(connection):
 
             assert len(exc_get) == len(ExchangeRateProvider().available_currencies) - 1
 
+    worker.end_worker()
 
-def test_update(connection):
-    uow = UnitOfWork(connection)
+
+def test_update(connection_pool):
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
+
     exc_pr = ExchangeRateProvider()
 
     from_currency = exc_pr.base_currency
@@ -173,7 +186,4 @@ def test_update(connection):
             assert "Empty Response.content" in str(e)
             # If at first try in _update_exchange_rate the rate were not available, it
             # means that requirind them will return an empty content
-
-
-def test_startup(connection):
-    startup()
+    worker.end_worker()

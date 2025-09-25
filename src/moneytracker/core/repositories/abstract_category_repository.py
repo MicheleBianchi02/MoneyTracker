@@ -233,7 +233,7 @@ class AbstractCategoryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def validate_id_cat(self, id_cat: int) -> int | None:
+    def validate_id_cat(self, id_cat: int) -> tuple[int, int | None] | None:
         """Check if the provided category id is present
         in the database.
 
@@ -244,5 +244,10 @@ class AbstractCategoryRepository(ABC):
         Returns
         -------
             None if the category with the corresponding id is not found in the
-            database. If present, the id_user is returned.
+            database. If present, the id_user and the parent category id are returned.
+            If the category is a priamry, parent_category_id is None.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
         """

@@ -1,16 +1,17 @@
-import sqlite3
+import threading
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.exceptions import UsernameAlreadyPresentError
 from moneytracker.core.services.user_service import UserService
+from moneytracker.infrastructure import worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
-def connection(tmp_path) -> sqlite3.Connection:
+def connection_pool(tmp_path) -> ConnectionPool:
     """Create isolated database environment for each test.
     Add tmp_path to the argument to use the tmp directory for the datbase."""
 
@@ -21,13 +22,17 @@ def connection(tmp_path) -> sqlite3.Connection:
     db_path = str(db_path)
 
     # db_path = ":memory:"  # use in memory database
-    connection_pool = ConnectionPool(db_path, max_connections=1)
-    with connection_pool.managed_connection() as connection:
-        return connection
+
+    connection_pool = ConnectionPool(db_path, max_connections=2)
+
+    return connection_pool
 
 
-def test_add_user(connection):
-    uow = UnitOfWork(connection)
+def test_add_user(connection_pool):
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
 
@@ -49,9 +54,14 @@ def test_add_user(connection):
         assert username == user.username
         assert "$argon2id$" in user.password
 
+    worker.end_worker()
 
-def test_authenticate(connection):
-    uow = UnitOfWork(connection)
+
+def test_authenticate(connection_pool):
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
 
@@ -63,17 +73,20 @@ def test_authenticate(connection):
 
     user_service.add(uow, username, password)
 
-    is_auth, id_user = user_service.authenticate(uow, username, password)
-    assert is_auth
-    assert id_user is not None
+    user = user_service.authenticate(uow, username, password)
+    assert user is not None
 
-    is_auth, id_user = user_service.authenticate(uow, username, UtilTest.generate_random_string())
-    assert not is_auth
-    assert id_user is None
+    user = user_service.authenticate(uow, username, UtilTest.generate_random_string())
+    assert user is None
+
+    worker.end_worker()
 
 
-def test_edit(connection):
-    uow = UnitOfWork(connection)
+def test_edit(connection_pool):
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+
+    uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
 
@@ -88,12 +101,13 @@ def test_edit(connection):
     new_password = UtilTest.generate_random_string()
 
     new_user = user_service.get(uow, username)[0]
-    new_user.password = new_password
 
-    user_service.edit(uow, new_user)
+    user_service.edit(uow, new_user.id, None, new_password, password)
 
-    is_aut, id_user = user_service.authenticate(uow, username, new_password)
-    assert is_aut
+    user = user_service.authenticate(uow, username, new_password)
+    assert user is not None
 
-    is_aut, id_user = user_service.authenticate(uow, username, password)
-    assert not is_aut
+    user = user_service.authenticate(uow, username, password)
+    assert user is None
+
+    worker.end_worker()

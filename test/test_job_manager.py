@@ -3,8 +3,6 @@ import time
 import uuid
 from threading import Thread
 
-from test.util_test import UtilTest
-
 from moneytracker.infrastructure.job_manager import (
     COMPLETED_CODE,
     FAILED_CODE,
@@ -13,6 +11,7 @@ from moneytracker.infrastructure.job_manager import (
     JobStatusManager,
     check_status,
 )
+from test.util_test import UtilTest
 
 # multiprocessing is not supported yet
 

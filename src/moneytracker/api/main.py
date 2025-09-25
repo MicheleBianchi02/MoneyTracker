@@ -109,14 +109,14 @@ def login_for_access_token(
 ) -> Token:
     try:
         user_service = UserService()
-        is_valid, id_user = user_service.authenticate(uow, form_data.username, form_data.password)
-        if not is_valid:
+        user = user_service.authenticate(uow, form_data.username, form_data.password)
+        if user is None:
             raise UnauthorizedException()
 
     except ServiceError:
         raise InternalServerErrorException()
 
-    access_token = create_access_token(data={"sub": str(id_user)})
+    access_token = create_access_token(data={"sub": str(user.id)})
     return Token(access_token=access_token, token_type="bearer")
 
 

@@ -482,6 +482,8 @@ class CategoryRepository(AbstractCategoryRepository):
     def delete(self, id_cat: int) -> None:
         cursor = self._connection.cursor()
 
+        parameters = ()
+
         sql = """
             DELETE FROM 
                 categories
@@ -499,12 +501,13 @@ class CategoryRepository(AbstractCategoryRepository):
                 f"Error while deleting category with: id_cat = {id_cat}, ",
             ) from e
 
-    def validate_id_cat(self, id_cat: int) -> int | None:
+    def validate_id_cat(self, id_cat: int) -> tuple[int, int | None] | None:
         cursor = self._connection.cursor()
 
         sql = """
             SELECT 
-                id_user
+                id_user,
+                parent_category_id
             FROM
                 categories
             WHERE
@@ -513,10 +516,19 @@ class CategoryRepository(AbstractCategoryRepository):
 
         parameters = (id_cat,)
 
-        cat_get = cursor.execute(sql, parameters).fetchone()
-        cursor.close()
+        try:
+            cat_get = cursor.execute(sql, parameters).fetchone()
+            cursor.close()
 
-        if cat_get is None:
-            return None
+            if cat_get is None:
+                return None, None
 
-        return cat_get[0]
+            id_user = cat_get[0]
+            id_primary = cat_get[1]
+
+            return id_user, id_primary
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                f"Error while validating category with: id_cat = {id_cat}, ",
+            ) from e
