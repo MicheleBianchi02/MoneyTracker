@@ -1,11 +1,11 @@
 import jwt
-from core.exceptions import UnauthorizedException
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
-from infrastructure.dependencies import manage_uow
 from jwt.exceptions import InvalidTokenError
 
 from moneytracker.api import security
+from moneytracker.core.exceptions import UnauthorizedException
+from moneytracker.infrastructure.dependencies import manage_uow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
