@@ -197,6 +197,8 @@ class TransactionService:
         ------
             - OperationNotPermittedError: If the order or order_dir parameter are
                 not allowed values.
+            - ServiceExchangeRateNotFoundError: If an exchange rate has not been
+                found in the database.
             - ServiceInvalidCurrencyError: If the given to_currency is not a valid
                 currency. If None, the exception is not raised.
             - ServiceError: If something went wrong with the repository or the service.
@@ -462,6 +464,138 @@ class TransactionService:
                 logger.exception(str(e))
                 raise ServiceError("An unexpected system error occurred.") from e
 
+        except RepositoryError as e:
+            logger.exception(str(e))
+            raise ServiceError("An unexpected system error occurred.") from e
+
+    def get_balance(
+        self,
+        uow: AbstractUnitOfWork,
+        id_user: int,
+        to_currency: str,
+        begin_date: date | None,
+        end_date: date | None,
+        tr_type: str | None = None,
+        primary: str | None = None,
+        secondary: str | None = None,
+    ) -> tuple[float, float, bool]:
+        """Get transaction from database in a given date range.
+
+        The priority order is tr_type > primary > secondary. It means that if the
+        primary is not None but tr_type is None, then the value of primary is ignored.
+        The same is true for secondary.
+
+        Parameters
+        ----------
+            - id_user (int) : id of the user
+            - to_currency (str) : currency into which convert all the transactions
+            - begin_date (datetime.date or None) : starting date of the date range.
+                If None there is no inferior limit (all transaction up to end_date)
+            - end_date (datetime.date or None) : ending date of the date range.
+                If None there is no superior limit (all transaction from starting date).
+            - exp_type (str or None) : type of transaction, can be 'income' or 'expense'.
+                If None both type are returned. By default it is set to None,
+            - primary (str or None) : primary of the required transactrions list. If None
+                all transactions (indipendently on the primary) are returned.
+                By default it's set to None
+            - secondary (str or None) : secondary of the required transactrions list. If None
+                all transactions (indipendently on the secondary) are returned. If
+                this argument is not None, tr_type should not be 'income'.
+                By default it's set to None.
+
+        Returns
+        -------
+            A tuple containing the total expenses, the total income and a bool value
+            whether the exchange rates used are up to date or not. Both the float
+            values are positive (also for expenses).
+
+        Raises
+        ------
+            - ServiceExchangeRateNotFoundError: If an exchange rate has not been
+                found in the database.
+            - ServiceInvalidCurrencyError: If the given to_currency is not a valid
+                currency. If None, the exception is not raised.
+            - ServiceError: If something went wrong with the repository or the service.
+        """
+        logger.info("Getting transactions balance")
+
+        to_currency = to_currency.upper()
+        if not exc_rate_service.validate_currency(to_currency):
+            logger.error(f"{to_currency} is not a valid currency")
+            raise ServiceInvalidCurrencyError()
+
+        try:
+            with uow:
+                tot_expe, tot_inc, is_valid = uow.transaction.get_balance(
+                    id_user,
+                    to_currency,
+                    begin_date,
+                    end_date,
+                    tr_type,
+                    primary,
+                    secondary,
+                )
+
+            return tot_expe, tot_inc, is_valid
+
+        except EntityNotFoundError as e:
+            # If an exchange rate is not found, try to add it
+            logger.error(f"{str(e)} : Adding missing exchange rates.")
+
+            try:
+                with uow:
+                    tr_list, _ = uow.transaction.get(
+                        id_user=id_user,
+                        begin_date=begin_date,
+                        end_date=end_date,
+                        tr_type=tr_type,
+                        primary=primary,
+                        secondary=secondary,
+                    )
+
+                    date_list = [tr.tr_date for tr in tr_list]
+
+                    exc_rates = self._get_missing_exchange_rate(uow, date_list)
+
+                    # add exchange rates using the worker
+                    args = (exc_rates,)
+                    complete_task(ADD_EXC_RATE_TASK_NAME, args)
+
+                with uow:
+                    tot_expe, tot_inc, is_valid = uow.transaction.get_balance(
+                        id_user,
+                        to_currency,
+                        begin_date,
+                        end_date,
+                        tr_type,
+                        primary,
+                        secondary,
+                    )
+
+                return tot_expe, tot_inc, is_valid
+
+            except EntityNotFoundError as e:
+                logger.error(f"{str(e)}")
+                raise ServiceExchangeRateNotFoundError("An exchange rate is still not found") from e
+
+            except InvalidParameterError as e:
+                logger.error(
+                    "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
+                )
+                raise ServiceError(
+                    "An attempt was made to add an exchange rate with identical "
+                    "from_currency and to_currency parameters, which is not allowed."
+                ) from e
+
+            except DuplicateEntityError as e:
+                logger.error("A duplicate exchange rate was added to the database")
+                raise ServiceError(
+                    "An attempt was made to add an already existing exchange rate",
+                ) from e
+
+            except RepositoryError as e:
+                logger.exception(str(e))
+                raise ServiceError("An unexpected system error occurred.") from e
         except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e

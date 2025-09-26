@@ -163,7 +163,7 @@ if __name__ == "__main__":
         print()  # just to have a space between logging and the json
 
         uvicorn.run(
-            "api.main:app",
+            "moneytracker.api.main:app",
             host=host,
             port=int(port),
             log_level=log_level,

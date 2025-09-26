@@ -198,6 +198,55 @@ class AbstractTransactionRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_balance(
+        self,
+        id_user: int,
+        to_currency: str,
+        begin_date: date | None,
+        end_date: date | None,
+        tr_type: str | None = None,
+        primary: str | None = None,
+        secondary: str | None = None,
+    ) -> tuple[float, float, bool]:
+        """Get balance for the given range.
+
+        The priority order is tr_type > primary > secondary. It means that if the
+        primary is not None but tr_type is None, then the value of primary is ignored.
+        The same is true for secondary.
+
+        Parameters
+        ----------
+            - id_user (int) : id of the user
+            - to_currency (str) : currency into which convert all the transactions
+            - begin_date (datetime.date or None) : starting date of the date range.
+                If None there is no inferior limit (all transaction up to end_date)
+            - end_date (datetime.date or None) : ending date of the date range.
+                If None there is no superior limit (all transaction from starting date).
+            - exp_type (str or None) : type of transaction, can be 'income' or 'expense'.
+                If None both type are returned. By default it is set to None,
+            - primary (str or None) : primary of the required transactrions list. If None
+                all transactions (indipendently on the primary) are returned.
+                By default it's set to None
+            - secondary (str or None) : secondary of the required transactrions list. If None
+                all transactions (indipendently on the secondary) are returned. If
+                this argument is not None, tr_type should not be 'income'.
+                By default it's set to None.
+        Returns
+        -------
+            A tuple containing the total expenses, the total income and a bool value
+            whether the exchange rates used are up to date or not. Both the float
+            values are positive (also for expenses).
+
+        Raises
+        ------
+            - EntityNotFoundError: If an exchange rate is not found in the db.
+            - RepostioryError: If something went wrong with the database.
+
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
     def get_by_id_cat(self, id_cat: int) -> list[TransactionOut]:
         """Get transaction list with the provided category id.
 

@@ -3,13 +3,13 @@ import sqlite3
 from datetime import date
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.domain.transaction import TransactionOut, TransactionRepoIn
 from moneytracker.core.exceptions import EntityNotFoundError
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.repositories.transaction_repository import NONE_REPLACEMENT
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -559,6 +559,47 @@ def test_convert_exception(connection):
             # If the smallest date is removed an error is raised since the exchange rate
             # for that rate doesn't exist (and also for past dates).
             assert True
+
+
+def test_get_balance(connection) -> None:
+    with UnitOfWork(connection) as uow:
+        UtilTest.init_database(uow)
+        _, cat_list, tr_tot_list = UtilTest.fill_user_cat_tr(uow)
+        _ = UtilTest.add_exchange_rate(uow, tr_tot_list)
+
+    n = 25
+
+    for _ in range(n):
+        to_currency = random.choice(UtilTest.currencies)
+        with uow:
+            tr1 = random.choice(tr_tot_list)
+            id_user = tr1.id_user
+
+            tot_exp_get, tot_inc_get, is_valid_get = uow.transaction.get_balance(
+                id_user, to_currency, None, None
+            )
+
+            tot_exp = 0
+            tot_inc = 0
+            is_valid = True
+            for tr in tr_tot_list:
+                if tr.id_user == id_user:
+                    value, is_tr_valid = convert_value(uow, to_currency, tr)
+
+                    if tr.tr_type == "expense":
+                        tot_exp += value
+                    else:
+                        tot_inc += value
+
+                    if not is_tr_valid and is_valid:
+                        is_valid = False
+
+            assert is_valid == is_valid_get
+            assert round(tot_exp, 4) == round(tot_exp_get, 4)
+            assert round(tot_inc, 4) == round(tot_inc_get, 4)
+
+        # the other tests (with dates and categories) are equal to the test
+        # for get_transactions
 
 
 def test_get_by_id_cat(connection) -> None:

@@ -40,6 +40,12 @@ class SummaryResponse(BaseModel):
     is_valid: bool
 
 
+class BalanceResponse(BaseModel):
+    tot_expense: float
+    tot_income: float
+    is_valid: bool
+
+
 @router.post("/", status_code=201, response_model=None)
 def add_transaction(
     transaction: list[TransactionIn] | TransactionIn,
@@ -105,7 +111,7 @@ def get_transactions(
         raise InvalidCurrencyException()
     except OperationNotPermittedError:
         raise BadRequestException()
-    except ServiceError:
+    except (ServiceError, ServiceExchangeRateNotFoundError):
         raise InternalServerErrorException()
 
 
@@ -135,6 +141,37 @@ def get_summary(
             secondary,
         )
         return SummaryResponse(summary=summary, is_valid=is_valid)
+
+    except ServiceInvalidCurrencyError:
+        raise InvalidCurrencyException()
+    except (ServiceError, ServiceExchangeRateNotFoundError):
+        raise InternalServerErrorException()
+
+
+@router.get("/balance/", response_model=BalanceResponse)
+def get_balance(
+    to_currency: str,
+    begin_date: date | None = None,
+    end_date: date | None = None,
+    tr_type: str | None = None,
+    primary: str | None = None,
+    secondary: str | None = None,
+    id_user: int = Depends(get_id_user),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+) -> BalanceResponse:
+    try:
+        tot_expe, tot_inc, is_valid = transaction_service.get_balance(
+            uow,
+            id_user,
+            to_currency,
+            begin_date,
+            end_date,
+            tr_type,
+            primary,
+            secondary,
+        )
+
+        return BalanceResponse(tot_expense=tot_expe, tot_income=tot_inc, is_valid=is_valid)
 
     except ServiceInvalidCurrencyError:
         raise InvalidCurrencyException()

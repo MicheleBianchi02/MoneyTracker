@@ -258,9 +258,15 @@ class TransactionRepository(AbstractTransactionRepository):
                 f"id_user:{id_user}, "
                 f"begin_date:{begin_date}, "
                 f"end_date:{end_date}, "
+                f"to_currency:{to_currency}, "
                 f"tr_type:{tr_type}, "
                 f"primary_name:{primary}, "
                 f"secondary_name:{secondary}."
+                f"order:{order}, "
+                f"order_dir:{order_dir}, "
+                f"limit:{limit}, "
+                f"offset:{offset}, "
+                f"name:{name}."
             ) from e
 
     def get_summary(
@@ -387,6 +393,132 @@ class TransactionRepository(AbstractTransactionRepository):
             ) from e
 
         return summary_data, is_valid
+
+    def get_balance(
+        self,
+        id_user: int,
+        to_currency: str,
+        begin_date: date | None,
+        end_date: date | None,
+        tr_type: str | None = None,
+        primary: str | None = None,
+        secondary: str | None = None,
+    ) -> tuple[float, float, bool]:
+        if begin_date is None:
+            begin_date = date(1, 1, 1)
+
+        if end_date is None:
+            end_date = date(9999, 12, 31)
+
+        begin_date = begin_date.isoformat()
+        end_date = end_date.isoformat()
+
+        cursor = self._connection.cursor()
+
+        sql = """
+        SELECT
+            tr.id_tr,
+            tr.id_user,
+            tr.tr_date,
+            tr.name,
+            tr.tr_value,
+            tr.description,
+            tr.currency,
+            c.category_type,
+            CASE  
+                WHEN p.name IS NULL THEN 
+                    c.name
+                ELSE 
+                    p.name
+                END AS primary_name,
+            CASE  
+                WHEN p.name IS NULL THEN 
+                    NULL
+                ELSE 
+                    c.name
+                END AS secondary_name
+        FROM 
+            transactions tr
+        INNER JOIN
+            categories c ON tr.id_category = c.id_category
+        LEFT JOIN
+            categories p ON c.parent_category_id = p.id_category
+        WHERE 
+            tr.id_user = ?
+            AND tr.tr_date BETWEEN ? AND ? 
+        """
+
+        parameters = [id_user, begin_date, end_date]
+        try:
+            if tr_type is not None:
+                sql += " AND c.category_type = ? "
+                parameters.append(tr_type)
+                if primary is not None:
+                    sql += """
+                        AND (
+                            (p.name = ? AND c.parent_category_id IS NOT NULL) OR
+                            (c.name = ? AND c.parent_category_id IS NULL)
+                        )
+                    """
+                    parameters.append(primary)
+                    parameters.append(primary)
+
+                    if secondary is not None:
+                        sql += """
+                            AND (
+                                (c.name = ? AND c.parent_category_id IS NOT NULL)
+                            )
+                        """
+
+                        parameters.append(secondary)
+
+            parameters = tuple(parameters)
+
+            cursor.execute(sql, parameters)
+            tr_ret_list = cursor.fetchall()
+
+            if tr_ret_list:
+                actual_min_date_str = min(t[2] for t in tr_ret_list)
+                actual_max_date_str = max(t[2] for t in tr_ret_list)
+
+                filled_rates = _get_raw_exc_rate(cursor, actual_min_date_str, actual_max_date_str)
+
+            tot_inc = 0
+            tot_exp = 0
+            is_valid = True
+            for tr in tr_ret_list:
+                tr_date_str = tr[2]
+                tr_currency = tr[6]
+                tr_value = tr[4]
+                tr_type_ret = tr[7]
+
+                tr_value, is_tr_valid = _get_converted_value(
+                    filled_rates, tr_date_str, tr_currency, tr_value, to_currency
+                )
+                # register only the first false
+                if is_valid and not is_tr_valid:
+                    is_valid = False
+
+                # expenses are positive
+                if tr_type_ret == "expense":
+                    tot_exp += tr_value
+
+                elif tr_type_ret == "income":
+                    tot_inc += tr_value
+
+            return tot_exp, tot_inc, is_valid
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                "Error while getting transactions: "
+                f"id_user:{id_user}, "
+                f"to_currency:{to_currency}, "
+                f"begin_date:{begin_date}, "
+                f"end_date:{end_date}, "
+                f"tr_type:{tr_type}, "
+                f"primary_name:{primary}, "
+                f"secondary_name:{secondary}."
+            ) from e
 
     def get_by_id_cat(self, id_cat: int) -> list[TransactionOut]:
         # Used by the category service when trying to delete a category.
