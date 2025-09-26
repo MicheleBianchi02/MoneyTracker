@@ -6,7 +6,7 @@ from moneytracker.core.exceptions import ServiceError, UsernameAlreadyPresentErr
 from moneytracker.core.services.user_service import UserService
 from moneytracker.core.services.user_setting_service import UserSettingService
 from moneytracker.default_settings import DEFAULT_CURRENCY_NAME
-from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.tui.pages.menu import MenuPage
 from moneytracker.tui.utils import DASHBOARD_TAB, Page, clear_screen
 
@@ -48,7 +48,8 @@ class SignUpPage(Page):
 
             # --- Services
             try:
-                id_user = user_service.add(get_uow(), username, password)
+                with manage_uow() as uow:
+                    id_user = user_service.add(uow, username, password)
             except UsernameAlreadyPresentError:
                 username_not_valid = True
                 continue
@@ -57,26 +58,28 @@ class SignUpPage(Page):
                 continue
 
             try:
-                setting_list = setting_service.get(get_uow(), None, "language")
+                with manage_uow() as uow:
+                    setting_list = setting_service.get(uow, None, "language")
                 language_list = setting_list[0].allowed_settings
                 language_list = [sett["item_value"] for sett in language_list]
                 language = Prompt.ask(
                     "Enter your preferred language", choices=language_list, default="it"
                 )
 
-                available_curr = setting_service.get_currency_list(get_uow(), None)
-                curr_code = [curr[0] for curr in available_curr]
-                default_currency = Prompt.ask(
-                    "\nEnter your preferred currency", choices=curr_code, default="EUR"
-                )
+                with manage_uow() as uow:
+                    available_curr = setting_service.get_currency_list(uow, None)
+                    curr_code = [curr[0] for curr in available_curr]
+                    default_currency = Prompt.ask(
+                        "\nEnter your preferred currency", choices=curr_code, default="EUR"
+                    )
 
-                setting_service.add(get_uow(), id_user, DEFAULT_CURRENCY_NAME, default_currency)
-                setting_service.add(get_uow(), id_user, "language", language)
+                    setting_service.add(uow, id_user, DEFAULT_CURRENCY_NAME, default_currency)
+                    setting_service.add(uow, id_user, "language", language)
 
-                for curr in available_curr:
-                    if curr[0] == default_currency:
-                        setting_service.add_currency(get_uow(), id_user, default_currency, curr[1])
-                        break
+                    for curr in available_curr:
+                        if curr[0] == default_currency:
+                            setting_service.add_currency(uow, id_user, default_currency, curr[1])
+                            break
 
                 return Tutorial(id_user)
 

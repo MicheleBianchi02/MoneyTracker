@@ -11,7 +11,7 @@ from moneytracker.core.services.category_service import CategoryService
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.core.services.user_setting_service import UserSettingService
 from moneytracker.default_settings import DEFAULT_CURRENCY_NAME
-from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.tui.utils import (
     DASHBOARD_TAB,
     EXPENSE_TAB,
@@ -32,14 +32,15 @@ class DashboardPage(Page):
     def __init__(self, id_user: int) -> None:
         self.id_user = id_user
 
-        setting = setting_service.get(get_uow(), id_user, "value_format")[0]
-        self.value_format = setting.value
+        with manage_uow() as uow:
+            setting = setting_service.get(uow, self.id_user, "value_format")[0]
+            self.value_format = setting.value
 
-        # code used to dissplay all cat in the filter
-        self._cat_code = "ncsk8swedmsf402323"
+            # code used to display all cat in the filter
+            self._cat_code = "ncsk8swedmsf402323"
 
-        self.curr_list = setting_service.get_currency_list(get_uow(), self.id_user)
-        self.default_currency = setting_service.get(get_uow(), self.id_user, DEFAULT_CURRENCY_NAME)
+            self.curr_list = setting_service.get_currency_list(uow, self.id_user)
+            self.default_currency = setting_service.get(uow, self.id_user, DEFAULT_CURRENCY_NAME)
 
         if not self.default_currency:
             self.default_currency = None
@@ -61,6 +62,7 @@ class DashboardPage(Page):
             "primary": self._cat_code,
             "secondary": None,
             "show_id": False,
+            "currency": None,
         }
 
         while True:
@@ -113,6 +115,7 @@ class DashboardPage(Page):
         primary = filters["primary"]
         secondary = filters["secondary"]
         show_id = filters["show_id"]
+        currency = filters["currency"]  # can also be None
 
         month_column = False
         year_column = False
@@ -131,15 +134,17 @@ class DashboardPage(Page):
             primary = None
             secondary = None
 
-        tr_list = tr_service.get_transaction(
-            get_uow(),
-            self.id_user,
-            st_date,
-            end_date,
-            tr_type=cat_type,
-            primary=primary,
-            secondary=secondary,
-        )
+        with manage_uow() as uow:
+            tr_list, is_valid = tr_service.get_transaction(
+                uow,
+                self.id_user,
+                st_date,
+                end_date,
+                tr_type=cat_type,
+                primary=primary,
+                secondary=secondary,
+                to_currency=currency,
+            )
 
         table = Table(show_header=True, header_style="bold magenta")
 
@@ -217,6 +222,9 @@ class DashboardPage(Page):
             elif primary is not None:
                 info += f" , {primary}-{secondary}"
 
+        if currency is not None:
+            info += f" , currency: {currency}"
+
         console.print(info)
         console.print(table)
 
@@ -242,15 +250,16 @@ class DashboardPage(Page):
         primary = actual_filter["primary"]
         secondary = actual_filter["secondary"]
         show_id = actual_filter["show_id"]
+        currency = actual_filter["currency"]  # can also be None
 
         console.print("\n[yellow]Filter[/]")
 
         while True:
             console.print(
                 "\nFilter by: [bold green]d[/]ate, [bold green]t[/]ype, "
-                "[bold green]c[/]ategory, [bold green]e[/]nd"
+                "[bold green]c[/]ategory, [bold green]cu[/]rrency [bold green]e[/]nd"
             )
-            choice = Prompt.ask("Choice", choices=["d", "t", "c", "e"], default="d")
+            choice = Prompt.ask("Choice", choices=["d", "t", "c", "cu", "e"], default="d")
 
             if choice == "d":
                 while True:
@@ -292,10 +301,11 @@ class DashboardPage(Page):
 
                 if tr_type == "income":
                     cat_list = []
-                    for year in year_list:
-                        cat_list.extend(
-                            cat_service.get_primary_list(get_uow(), self.id_user, year, "income")
-                        )
+                    with manage_uow() as uow:
+                        for year in year_list:
+                            cat_list.extend(
+                                cat_service.get_primary_list(uow, self.id_user, year, "income")
+                            )
 
                     prim_name = [cat.primary for cat in cat_list]
                     prim_name = set(prim_name)
@@ -312,15 +322,16 @@ class DashboardPage(Page):
 
                 elif tr_type == "expense":
                     prim_list = []
-                    for year in year_list:
-                        prim_list.extend(
-                            cat_service.get_primary_list(
-                                get_uow(),
-                                self.id_user,
-                                year,
-                                "expense",
+                    with manage_uow() as uow:
+                        for year in year_list:
+                            prim_list.extend(
+                                cat_service.get_primary_list(
+                                    uow,
+                                    self.id_user,
+                                    year,
+                                    "expense",
+                                )
                             )
-                        )
 
                     prim_name = [cat.primary for cat in prim_list]
                     prim_name = set(prim_name)
@@ -335,12 +346,11 @@ class DashboardPage(Page):
                         primary = choice
 
                         sec_list = []
-                        for year in year_list:
-                            sec_list.extend(
-                                cat_service.get_secondary_list(
-                                    get_uow(), self.id_user, year, primary
+                        with manage_uow() as uow:
+                            for year in year_list:
+                                sec_list.extend(
+                                    cat_service.get_secondary_list(uow, self.id_user, year, primary)
                                 )
-                            )
 
                         sec_name = [cat.secondary for cat in sec_list]
                         sec_name = set(sec_name)
@@ -355,10 +365,11 @@ class DashboardPage(Page):
 
                 elif tr_type == "both":
                     cat_list = []
-                    for year in year_list:
-                        cat_list.extend(
-                            cat_service.get_primary_list(get_uow(), self.id_user, year, None)
-                        )
+                    with manage_uow() as uow:
+                        for year in year_list:
+                            cat_list.extend(
+                                cat_service.get_primary_list(uow, self.id_user, year, None)
+                            )
 
                     prim_name = [cat.primary for cat in cat_list]
                     prim_name = set(prim_name)
@@ -372,34 +383,44 @@ class DashboardPage(Page):
 
                     else:
                         primary = choice
-                        for cat in cat_list:
-                            if primary == cat.primary:
-                                tr_type = cat.category_type
+                        with manage_uow() as uow:
+                            for cat in cat_list:
+                                if primary == cat.primary:
+                                    tr_type = cat.category_type
 
-                                if tr_type == "expense":
-                                    sec_list = []
-                                    for year in year_list:
-                                        sec_list.extend(
-                                            cat_service.get_secondary_list(
-                                                get_uow(), self.id_user, year, primary
+                                    if tr_type == "expense":
+                                        sec_list = []
+                                        for year in year_list:
+                                            sec_list.extend(
+                                                cat_service.get_secondary_list(
+                                                    uow, self.id_user, year, primary
+                                                )
                                             )
+
+                                        sec_name = [cat.secondary for cat in sec_list]
+                                        sec_name = set(sec_name)
+                                        choice = Prompt.ask(
+                                            "Subcategory (leave empty to show all)",
+                                            choices=sec_name,
+                                            default="",
                                         )
 
-                                    sec_name = [cat.secondary for cat in sec_list]
-                                    sec_name = set(sec_name)
-                                    choice = Prompt.ask(
-                                        "Subcategory (leave empty to show all)",
-                                        choices=sec_name,
-                                        default="",
-                                    )
+                                        if choice == "":
+                                            secondary = None
+                                        else:
+                                            secondary = choice
 
-                                    if choice == "":
-                                        secondary = None
                                     else:
-                                        secondary = choice
+                                        secondary = None
 
-                                else:
-                                    secondary = None
+            elif choice == "cu":
+                currency_code = [curr[0] for curr in self.curr_list]
+
+                console.print("Leave empty if the currency's transaction is to be used")
+                currency = Prompt.ask("Currency", choices=currency_code, default="")
+
+                if currency == "":
+                    currency = None
 
             elif choice == "e":
                 filters = {
@@ -409,6 +430,7 @@ class DashboardPage(Page):
                     "primary": primary,
                     "secondary": secondary,
                     "show_id": False,
+                    "currency": currency,
                 }
 
                 return filters
@@ -420,6 +442,7 @@ class DashboardPage(Page):
                 "primary": primary,
                 "secondary": secondary,
                 "show_id": False,
+                "currency": currency,
             }
 
     def _add_tr(self, console: Console) -> None:
@@ -437,7 +460,8 @@ class DashboardPage(Page):
                 console.print("[red]Try again[/]")
                 continue
 
-            prim_list = cat_service.get_primary_list(get_uow(), self.id_user, tr_date.year, None)
+            with manage_uow() as uow:
+                prim_list = cat_service.get_primary_list(uow, self.id_user, tr_date.year, None)
             if not prim_list:
                 console.print(
                     "[bold red]You don't have any saved category. "
@@ -457,9 +481,10 @@ class DashboardPage(Page):
             if tr_type == "income":
                 secondary = None
             else:
-                sec_list = cat_service.get_secondary_list(
-                    get_uow(), self.id_user, tr_date.year, primary
-                )
+                with manage_uow() as uow:
+                    sec_list = cat_service.get_secondary_list(
+                        uow, self.id_user, tr_date.year, primary
+                    )
 
                 sec_name = [cat.secondary for cat in sec_list]
 
@@ -503,7 +528,6 @@ class DashboardPage(Page):
             description = Prompt.ask("Description")
 
             tr = TransactionIn(
-                id_user=self.id_user,
                 primary=primary,
                 secondary=secondary,
                 tr_type=tr_type,
@@ -533,7 +557,8 @@ class DashboardPage(Page):
 
             if is_ok:
                 try:
-                    tr_service.add_transaction(get_uow(), tr)
+                    with manage_uow() as uow:
+                        tr_service.add_transaction(uow, self.id_user, tr)
                 except ServiceError:
                     console.print("\n[red]An error occoured, please try again[/]")
                     Prompt.ask("")
@@ -579,7 +604,8 @@ class DashboardPage(Page):
                 console.print("[red]Try again[/]")
                 continue
 
-            prim_list = cat_service.get_primary_list(get_uow(), self.id_user, year, tr.tr_type)
+            with manage_uow() as uow:
+                prim_list = cat_service.get_primary_list(uow, self.id_user, year, tr.tr_type)
             if not prim_list:
                 console.print("[red]There are no categories for that year.[/]")
                 Prompt.ask("")
@@ -594,12 +620,13 @@ class DashboardPage(Page):
                 break
 
             if tr.tr_type == "expense":
-                sec_list = cat_service.get_secondary_list(
-                    get_uow(),
-                    self.id_user,
-                    year,
-                    primary,
-                )
+                with manage_uow() as uow:
+                    sec_list = cat_service.get_secondary_list(
+                        uow,
+                        self.id_user,
+                        year,
+                        primary,
+                    )
 
                 if sec_list:
                     sec_name = [cat.secondary for cat in sec_list]
@@ -632,7 +659,6 @@ class DashboardPage(Page):
             description = Prompt.ask("New description", default=tr.description)
 
             new_tr = TransactionIn(
-                id_user=self.id_user,
                 primary=primary,
                 secondary=secondary,
                 tr_type=tr.tr_type,
@@ -643,7 +669,7 @@ class DashboardPage(Page):
                 description=description,
             )
 
-            console.print("\nNew transaction:")
+            console.print("\nEdited transaction:")
             console.print(f"Date: {tr.tr_date.isoformat()} -> {new_date.isoformat()}")
             console.print(f"Name: {name} -> {name}")
 
@@ -671,7 +697,8 @@ class DashboardPage(Page):
 
             if is_ok:
                 try:
-                    tr_service.edit_transaction(get_uow(), id_tr, new_tr)
+                    with manage_uow() as uow:
+                        tr_service.edit_transaction(uow, id_tr, new_tr, self.id_user)
                 except ServiceError:
                     console.print("\n[red]An error occoured, please try again[/]")
                     Prompt.ask("")
@@ -724,7 +751,8 @@ class DashboardPage(Page):
 
             if is_ok:
                 try:
-                    tr_service.delete_transaction(get_uow(), id_tr)
+                    with manage_uow() as uow:
+                        tr_service.delete_transaction(uow, id_tr, self.id_user)
                 except ServiceError:
                     console.print("\n[red]An error occoured, please try again[/]")
                     Prompt.ask("")

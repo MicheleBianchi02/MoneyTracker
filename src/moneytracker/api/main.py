@@ -30,7 +30,7 @@ from moneytracker.core.services.startup import (
 )
 from moneytracker.core.services.user_service import UserService
 from moneytracker.infrastructure.dependencies import get_uow
-from moneytracker.tui.main import ALTERNATE_SCREEN_MODE, run_tui
+from moneytracker.tui.main import ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE, run_tui
 
 # WARNING: this backend works only on one processor, so it is not allowed to use
 # --worker >1 inside uvicorn settings. This beacuse we are using threading.Lock and not
@@ -134,8 +134,25 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.terminal:
+        print("Do you want to open an alternate screen (without scrolling)")
+        print("or use this terminal window (all history will be deleted)?")
+
+        # TODO: Save those settings in the database
+        while True:
+            choice = input("Choice (a for alternate, c for current window):")
+
+            if choice == "a":
+                mode = ALTERNATE_SCREEN_MODE
+                break
+            elif choice == "c":
+                mode = DELETE_SCREEN_MODE
+                break
+            else:
+                print("Wrong input, try again")
+                continue
+
         startup()
-        run_tui(ALTERNATE_SCREEN_MODE)
+        run_tui(mode)
         shutdown()
 
     else:

@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from moneytracker.core.services.user_service import UserService
-from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.tui.pages.menu import MenuPage
 from moneytracker.tui.pages.sign_up import SignUpPage
 from moneytracker.tui.utils import DASHBOARD_TAB, Page, clear_screen
@@ -15,9 +15,8 @@ user_service = UserService()
 class LoginPage(Page):
     def show(self, console: Console) -> Page:
         first = True
-        is_auth = False
 
-        while not is_auth:
+        while True:
             clear_screen()
 
             console.print("[bold cyan]--- Welcome ---[/bold cyan]")
@@ -39,10 +38,11 @@ class LoginPage(Page):
                 username = Prompt.ask("Username")
                 password = Prompt.ask("Password", password=True)
 
-                is_auth, id_user = user_service.authenticate(get_uow(), username, password)
+                with manage_uow() as uow:
+                    user = user_service.authenticate(uow, username, password)
 
-                if is_auth:
-                    return MenuPage(id_user, DASHBOARD_TAB)
+                if user is not None:
+                    return MenuPage(user.id, DASHBOARD_TAB)
 
             elif choice == "2":
                 return SignUpPage()
