@@ -135,7 +135,7 @@ class DashboardPage(Page):
             secondary = None
 
         with manage_uow() as uow:
-            tr_list, is_valid = tr_service.get_transaction(
+            tr_list, is_valid_tr = tr_service.get_transaction(
                 uow,
                 self.id_user,
                 st_date,
@@ -161,18 +161,25 @@ class DashboardPage(Page):
         table.add_column("currency")
         table.add_column("description")
 
-        # TODO: In this way we are not considering the different currencies
-        total_expe = 0
-        total_inc = 0
-        balance = 0
-        for tr in tr_list:
-            if tr.tr_type == "expense":
-                total_expe += tr.value
-                balance -= tr.value
+        with manage_uow() as uow:
+            if currency is None:
+                to_currency = self.default_currency
             else:
-                balance += tr.value
-                total_inc += tr.value
+                to_currency = currency
 
+            tot_exp, tot_inc, is_valid = tr_service.get_balance(
+                uow,
+                self.id_user,
+                to_currency,
+                st_date,
+                end_date,
+                cat_type,
+                primary,
+                secondary,
+            )
+
+        category = self._cat_code  # in case tr_list is empty
+        for tr in tr_list:
             if tr.tr_type == "expense":
                 value = "[red]-[/]" + format_value(tr.value, self.value_format)
 
@@ -226,21 +233,31 @@ class DashboardPage(Page):
             info += f" , currency: {currency}"
 
         console.print(info)
-        console.print(table)
 
-        total_inc = format_value(total_inc, self.value_format)
-        total_expe = format_value(total_expe, self.value_format)
-        console.print(f"Total income: [green]+[/]{total_inc} {self.default_currency}")
-        console.print(f"Total expenses: [red]-[/]{total_expe} {self.default_currency}")
+        if tr_list:
+            console.print(table)
 
-        bal = abs(balance)
-        bal = format_value(bal, self.value_format)
-        if balance < 0:
-            console.print(f"Balance: [red]-[/]{bal} {self.default_currency}")
-        elif balance > 0:
-            console.print(f"Balance: [green]-[/]{bal} {self.default_currency}")
+            total_inc = format_value(tot_inc, self.value_format)
+            total_expe = format_value(tot_exp, self.value_format)
+            console.print(f"Total income: [green]+[/]{total_inc} {self.default_currency}")
+            console.print(f"Total expenses: [red]-[/]{total_expe} {self.default_currency}")
+
+            balance = tot_inc - tot_exp
+            bal = abs(balance)
+            bal = format_value(bal, self.value_format)
+            if balance < 0:
+                console.print(f"Balance: [red]-[/]{bal} {self.default_currency}")
+            elif balance > 0:
+                console.print(f"Balance: [green]-[/]{bal} {self.default_currency}")
+            else:
+                console.print(f"Balance: {bal} {self.default_currency}")
+
+            if not is_valid or not is_valid_tr:
+                console.print("[yellow]\u26a0 Some currency conversion rates are not up to date[/]")
+
         else:
-            console.print(f"Balance: {bal} {self.default_currency}")
+            console.print("\nThere are no transactions in this period.")
+
         return tr_list
 
     def _filter(self, actual_filter: dict[str, str | date], console: Console) -> None:

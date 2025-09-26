@@ -8,7 +8,8 @@ from moneytracker.core.services.category_service import CategoryService
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.core.services.user_setting_service import UserSettingService
 from moneytracker.default_settings import DEFAULT_CURRENCY_NAME
-from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.dependencies import manage_uow
+from moneytracker.infrastructure.sqlite.repositories.transaction_repository import NONE_REPLACEMENT
 from moneytracker.tui.utils import (
     DASHBOARD_TAB,
     EXPENSE_TAB,
@@ -26,21 +27,22 @@ setting_service = UserSettingService()
 cat_service = CategoryService()
 
 # None replacement for keys in the returned dictionary
-none_key = "N/A"
+none_key = NONE_REPLACEMENT
 
 
 class ExpensePage(Page):
     def __init__(self, id_user: int) -> None:
         self.id_user = id_user
 
-        setting = setting_service.get(get_uow(), id_user, "value_format")[0]
-        self.value_format = setting.value
+        with manage_uow() as uow:
+            setting = setting_service.get(uow, id_user, "value_format")[0]
+            self.value_format = setting.value
 
-        # code used to dissplay all cat in the filter
-        self._cat_code = "ncsk8swedmsf402323"
+            # code used to dissplay all cat in the filter
+            self._cat_code = "ncsk8swedmsf402323"
 
-        self.curr_list = setting_service.get_currency_list(get_uow(), self.id_user)
-        self.default_currency = setting_service.get(get_uow(), self.id_user, DEFAULT_CURRENCY_NAME)
+            self.curr_list = setting_service.get_currency_list(uow, self.id_user)
+            self.default_currency = setting_service.get(uow, self.id_user, DEFAULT_CURRENCY_NAME)
 
         if not self.default_currency:
             self.default_currency = None
@@ -99,16 +101,17 @@ class ExpensePage(Page):
         show_sec = filters["show_sec"]
         currency = filters["currency"]
 
-        summary, is_valid = tr_service.get_summary(
-            get_uow(),
-            self.id_user,
-            st_date,
-            end_date,
-            "expense",
-            currency,
-            None,
-            None,
-        )
+        with manage_uow() as uow:
+            summary, is_valid = tr_service.get_summary(
+                uow,
+                self.id_user,
+                st_date,
+                end_date,
+                "expense",
+                currency,
+                None,
+                None,
+            )
 
         table = Table()
         table.add_column("Category")
