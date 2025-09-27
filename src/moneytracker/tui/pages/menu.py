@@ -2,7 +2,8 @@ from rich.console import Console
 
 from moneytracker.tui.pages.dashboard_tab import DashboardPage
 from moneytracker.tui.pages.expense_tab import ExpensePage
-from moneytracker.tui.utils import DASHBOARD_TAB, EXPENSE_TAB, Page
+from moneytracker.tui.pages.income_tab import IncomePage
+from moneytracker.tui.utils import DASHBOARD_TAB, EXPENSE_TAB, INCOME_TAB, Page
 
 
 class MenuPage(Page):
@@ -18,5 +19,8 @@ class MenuPage(Page):
 
             elif self.active_tab == EXPENSE_TAB:
                 self.active_tab = ExpensePage(self.id_user).show(console)
+
+            elif self.active_tab == INCOME_TAB:
+                self.active_tab = IncomePage(self.id_user).show(console)
 
         return None

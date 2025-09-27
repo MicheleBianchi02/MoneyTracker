@@ -13,8 +13,11 @@ from moneytracker.core.services.user_setting_service import UserSettingService
 from moneytracker.default_settings import DEFAULT_CURRENCY_NAME
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.tui.utils import (
+    CATEGORY_TAB,
     DASHBOARD_TAB,
     EXPENSE_TAB,
+    INCOME_TAB,
+    SETTING_TAB,
     Page,
     clear_screen,
     draw_navigation_tab,
@@ -101,6 +104,15 @@ class DashboardPage(Page):
                 if choice == "e":
                     return EXPENSE_TAB
 
+                elif choice == "i":
+                    return INCOME_TAB
+
+                elif choice == "c":
+                    return CATEGORY_TAB
+
+                elif choice == "s":
+                    return SETTING_TAB
+
             elif choice == "f":
                 filters = self._filter(filters, console)
 
@@ -127,6 +139,22 @@ class DashboardPage(Page):
         else:
             if st_date.month != end_date.month:
                 month_column = True
+
+        if month_column:
+            month_literal = {
+                "1": "Jan",
+                "2": "Feb",
+                "3": "Mar",
+                "4": "Apr",
+                "5": "May",
+                "6": "Jun",
+                "7": "Jul",
+                "8": "Aug",
+                "9": "Sep",
+                "10": "Oct",
+                "11": "Nov",
+                "12": "Dec",
+            }
 
         cat_type = tr_type if tr_type != "both" else None
 
@@ -192,13 +220,13 @@ class DashboardPage(Page):
             if show_id:
                 parameters.append(str(tr.id))
 
-            parameters.append(str(tr.tr_date.day))
-
             if year_column:
                 parameters.append(str(tr.tr_date.year))
 
             if month_column:
-                parameters.append(str(tr.tr_date.month))
+                parameters.append(month_literal[str(tr.tr_date.month)])
+
+            parameters.append(str(tr.tr_date.day))
 
             parameters.extend(
                 [
@@ -239,18 +267,18 @@ class DashboardPage(Page):
 
             total_inc = format_value(tot_inc, self.value_format)
             total_expe = format_value(tot_exp, self.value_format)
-            console.print(f"Total income: [green]+[/]{total_inc} {self.default_currency}")
-            console.print(f"Total expenses: [red]-[/]{total_expe} {self.default_currency}")
+            console.print(f"Total income: [green]+[/]{total_inc} {to_currency}")
+            console.print(f"Total expenses: [red]-[/]{total_expe} {to_currency}")
 
             balance = tot_inc - tot_exp
             bal = abs(balance)
             bal = format_value(bal, self.value_format)
             if balance < 0:
-                console.print(f"Balance: [red]-[/]{bal} {self.default_currency}")
+                console.print(f"Balance: [red]-[/]{bal} {to_currency}")
             elif balance > 0:
-                console.print(f"Balance: [green]-[/]{bal} {self.default_currency}")
+                console.print(f"Balance: [green]+[/]{bal} {to_currency}")
             else:
-                console.print(f"Balance: {bal} {self.default_currency}")
+                console.print(f"Balance: {bal} {to_currency}")
 
             if not is_valid or not is_valid_tr:
                 console.print("[yellow]\u26a0 Some currency conversion rates are not up to date[/]")
@@ -656,6 +684,9 @@ class DashboardPage(Page):
 
                     if secondary == "":
                         secondary = None
+
+                else:
+                    secondary = None
             else:
                 secondary = None
 

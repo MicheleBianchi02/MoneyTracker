@@ -22,7 +22,7 @@ from moneytracker.tui.utils import (
 )
 from moneytracker.utils import format_value
 
-active_tab = EXPENSE_TAB
+active_tab = INCOME_TAB
 
 
 tr_service = TransactionService()
@@ -33,7 +33,7 @@ cat_service = CategoryService()
 none_key = NONE_REPLACEMENT
 
 
-class ExpensePage(Page):
+class IncomePage(Page):
     def __init__(self, id_user: int) -> None:
         self.id_user = id_user
 
@@ -62,7 +62,6 @@ class ExpensePage(Page):
             "st_date": st_date,
             "end_date": end_date,
             "currency": self.default_currency,
-            "show_sec": True,
         }
 
         while True:
@@ -83,16 +82,16 @@ class ExpensePage(Page):
 
             elif choice == "c":
                 console.print(
-                    "\nTabs: [bold green]d[/]ashboard, [bold green]i[/]ncome, "
+                    "\nTabs: [bold green]d[/]ashboard, [bold green]e[/]xpense, "
                     "[bold green]c[/]ategory, [bold green]s[/]ettings"
                 )
-                choice = Prompt.ask("Which Tab", choices=["d", "i", "c", "s"], default="d")
+                choice = Prompt.ask("Which Tab", choices=["d", "e", "c", "s"], default="d")
 
                 if choice == "d":
                     return DASHBOARD_TAB
 
-                elif choice == "i":
-                    return INCOME_TAB
+                elif choice == "e":
+                    return EXPENSE_TAB
 
                 elif choice == "c":
                     return CATEGORY_TAB
@@ -110,29 +109,16 @@ class ExpensePage(Page):
     ) -> None:
         st_date = filters["st_date"]
         end_date = filters["end_date"]
-        show_sec = filters["show_sec"]
         currency = filters["currency"]
 
         with manage_uow() as uow:
-            cat_list = {}
+            prim_list = []
 
             year = st_date.year
             while year <= end_date.year:
-                prim_list = cat_service.get_primary_list(uow, self.id_user, year, "expense")
+                cat_list = cat_service.get_primary_list(uow, self.id_user, year, "income")
 
-                for prim in prim_list:
-                    sec_list = cat_service.get_secondary_list(uow, self.id_user, year, prim.primary)
-
-                    if sec_list:
-                        if prim.primary in cat_list:
-                            for sec in sec_list:
-                                cat_list[prim.primary].add(sec.secondary)
-                        else:
-                            cat_list[prim.primary] = set()
-                            for sec in sec_list:
-                                cat_list[prim.primary].add(sec.secondary)
-                    else:
-                        cat_list[prim.primary] = set()
+                prim_list.append(cat_list)
 
                 year += 1
 
@@ -141,7 +127,7 @@ class ExpensePage(Page):
                 self.id_user,
                 st_date,
                 end_date,
-                "expense",
+                "income",
                 currency,
                 None,
                 None,
@@ -149,7 +135,6 @@ class ExpensePage(Page):
 
         table = Table()
         table.add_column("Category")
-        table.add_column("Subcategory")
         table.add_column("Jan")
         table.add_column("Feb")
         table.add_column("Mar")
@@ -164,77 +149,37 @@ class ExpensePage(Page):
         table.add_column("Dec")
         table.add_column("Total")
 
-        table_dict = {}
-        for prim, res in summary.items():
-            table_dict[prim] = {}
-            table_dict[prim][None] = [0] * 13
-
-            for sec, val in res.items():
-                if sec != none_key:
-                    table_dict[prim][sec] = [0] * 13
-
-                    for sum_date, value in val.items():
-                        # There can be multiple years, so we have to sum the months
-                        month = int(sum_date[5:])
-                        table_dict[prim][None][month + 1] += value
-                        table_dict[prim][sec][month + 1] += value
-
-                else:
-                    for sum_date, value in val.items():
-                        # There can be multiple years, so we have to sum the months
-                        month = int(sum_date[5:])
-                        table_dict[prim][None][month + 1] += value
-
-        # add missing categories
-        for prim, sec_list in cat_list.items():
-            if prim not in table_dict:
-                table_dict[prim] = {}
-                table_dict[prim][None] = [0] * 13
-
-                for sec in sec_list:
-                    table_dict[prim][sec] = [0] * 13
-
-            else:
-                for sec in sec_list:
-                    if sec not in table_dict[prim]:
-                        table_dict[prim][sec] = [0] * 13
-
-        # transform in lists of lists
         rows = []
-        for prim, sec_dict in table_dict.items():
-            for sec, values in sec_dict.items():
-                row = []
+        for prim, res in summary.items():
+            prim_row = [0] * 14
+            prim_row[0] = prim
+            for sum_date, value in res[none_key].items():
+                # There can be multiple years, so we have to sum the months
+                month = int(sum_date[5:])
+                prim_row[month] += value
 
-                if sec is None:
-                    row.append(prim)
-                    row.append("")
-                    row.extend(values)
+            rows.append(prim_row)
 
-                else:
-                    row.append("")
-                    row.append(sec)
-                    row.extend(values)
+        for cat in cat_list:
+            if cat.primary not in summary:
+                prim_row = [0] * 14
+                prim_row[0] = cat.primary
 
-                rows.append(row)
+                rows.append(prim_row)
 
-        total_row = [0] * 15
+        total_row = [0] * 14
         total_row[0] = "Total"
-        total_row[1] = ""
         for row in rows:
-            row[-1] = sum(row[2:])  # right Total
-            if row[1] == "":  # primary row
-                for idx, val in enumerate(row[2:]):
-                    total_row[idx + 2] += val
+            row[-1] = sum(row[1:])  # right Total
+            for idx, val in enumerate(row[1:]):
+                total_row[idx + 1] += val
 
-            row[2:] = [format_value(par, self.value_format) for par in row[2:]]
-            if row[1] == "":  # primary row
-                table.add_row(*row, style="on blue")
-            elif show_sec:  # secondary row
-                table.add_row(*row)
+            row[1:] = [format_value(par, self.value_format) for par in row[1:]]
+            table.add_row(*row, style="on blue")
 
         table.add_row("")
 
-        total_row[2:] = [format_value(par, self.value_format) for par in total_row[2:]]
+        total_row[1:] = [format_value(par, self.value_format) for par in total_row[1:]]
         table.add_row(*total_row, style="on green")
 
         info = st_date.isoformat() + " -> " + end_date.isoformat()
@@ -250,24 +195,16 @@ class ExpensePage(Page):
     def _filter(self, actual_filter: dict[str, str | date], console: Console) -> None:
         st_date = actual_filter["st_date"]
         end_date = actual_filter["end_date"]
-        show_sec = actual_filter["show_sec"]
         currency = actual_filter["currency"]
 
         console.print("\n[yellow]Filter[/]")
 
         while True:
-            if show_sec:
-                console.print(
-                    "\nFilter by: [bold green]d[/]ate, [bold green]c[/]hange currency, "
-                    "[bold green]h[/]ide Subcategory, [bold green]e[/]nd"
-                )
-                choice = Prompt.ask("Choice", choices=["d", "c", "h", "e"], default="d")
-            else:
-                console.print(
-                    "\nFilter by: [bold green]d[/]ate, [bold green]c[/]hange currency, "
-                    "[bold green]s[/]how Subcategory, [bold green]e[/]nd"
-                )
-                choice = Prompt.ask("Choice", choices=["d", "c", "s", "e"], default="d")
+            console.print(
+                "\nFilter by: [bold green]d[/]ate, [bold green]c[/]hange currency, "
+                "[bold green]e[/]nd"
+            )
+            choice = Prompt.ask("Choice", choices=["d", "c", "e"], default="d")
 
             if choice == "d":
                 while True:
@@ -300,17 +237,11 @@ class ExpensePage(Page):
                 # If the default currency has not been defined, self.default_currency = None
                 # and it will not be printed.
 
-            elif choice == "h":
-                show_sec = False
-            elif choice == "s":
-                show_sec = True
-
             elif choice == "e":
                 filters = {
                     "st_date": st_date,
                     "end_date": end_date,
                     "currency": currency,
-                    "show_sec": show_sec,
                 }
 
                 return filters
@@ -319,5 +250,4 @@ class ExpensePage(Page):
                 "st_date": st_date,
                 "end_date": end_date,
                 "currency": currency,
-                "show_sec": show_sec,
             }

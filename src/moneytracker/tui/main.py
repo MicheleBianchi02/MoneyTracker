@@ -1,6 +1,7 @@
 from rich.console import Console
 
 from moneytracker.tui.pages.login import LoginPage
+from moneytracker.tui.utils import clear_screen
 
 ENTER_ALT_SCREEN = "\x1b[?1049h"
 EXIT_ALT_SCREEN = "\x1b[?1049l"
@@ -19,6 +20,8 @@ def run_tui(mode: str) -> None:
         current_page = LoginPage()
         while current_page is not None:
             current_page = current_page.show(console)
+
+        clear_screen()
     except (KeyboardInterrupt, EOFError):
         # Handle Ctrl+C or Ctrl+D gracefully
         print("\nExiting...")
