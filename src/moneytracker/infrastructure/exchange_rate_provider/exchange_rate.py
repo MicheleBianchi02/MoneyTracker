@@ -1,48 +1,80 @@
-import datetime
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
 from moneytracker.core.domain.exchange_rate import ExchangeRate
-from moneytracker.core.exceptions import ExchangeRateApiError
+from moneytracker.core.exceptions import ConnectionApiError, ExchangeRateApiError, TimeOutApiError
 
 
 class ExchangeRateProvider:
     _base_currency = "EUR"
-    _minimum_date = date(2000, 1, 1)
-    _available_currencies = [
-        ("AUD", None),
-        ("BGN", None),
-        ("BRL", None),
-        ("CAD", None),
-        ("CHF", None),
-        ("CNY", None),
-        ("CZK", None),
-        ("DKK", None),
-        ("EUR", "€"),
-        ("GBP", "£"),
-        ("HKD", None),
-        ("HRK", None),
-        ("HUF", None),
-        ("IDR", None),
-        ("ILS", None),
-        ("INR", None),
-        ("JPY", "¥"),
-        ("KRW", None),
-        ("LTL", None),
-        ("LVL", None),
-        ("MXN", None),
-        ("MYR", None),
-        ("NOK", None),
-        ("NZD", None),
-        ("PHP", None),
-        ("PLN", None),
-        ("RON", None),
-        ("SEK", None),
-        ("SGD", None),
-        ("TRY", None),
-        ("USD", "$"),
-        ("ZAR", None),
+    _minimum_date = date(2001, 1, 1)
+
+    # Bulgarian Lev (BGN) will be deprecated in 2025-12-31
+    # Romanian Leu (RON) in 2029
+    _available_currencies_detailed = {
+        "updated_date": "2025-10-01",
+        "currencies": [
+            {"code": "AUD", "symbol": "A$", "name": "Australian dollar", "status": "active"},
+            {"code": "BGN", "symbol": "лв", "name": "Bulgarian lev", "status": "active"},
+            {"code": "BRL", "symbol": "R$", "name": "Brazilian real", "status": "active"},
+            {"code": "CAD", "symbol": "C$", "name": "Canadian dollar", "status": "active"},
+            {"code": "CHF", "symbol": "CHF", "name": "Swiss franc", "status": "active"},
+            {"code": "CNY", "symbol": "¥", "name": "Chinese yuan renminbi", "status": "active"},
+            {"code": "CZK", "symbol": "Kč", "name": "Czech koruna", "status": "active"},
+            {"code": "DKK", "symbol": "kr", "name": "Danish krone", "status": "active"},
+            {"code": "EUR", "symbol": "€", "name": "Euro", "status": "active"},
+            {"code": "GBP", "symbol": "£", "name": "Pound sterling", "status": "active"},
+            {"code": "HKD", "symbol": "HK$", "name": "Hong Kong dollar", "status": "active"},
+            {
+                "code": "HRK",
+                "symbol": "kn",
+                "name": "Croatian kuna",
+                "status": "deprecated",
+                "deprecation_date": "2023-01-01",
+            },
+            {"code": "HUF", "symbol": "Ft", "name": "Hungarian forint", "status": "active"},
+            {"code": "IDR", "symbol": "Rp", "name": "Indonesian rupiah", "status": "active"},
+            {"code": "ILS", "symbol": "₪", "name": "Israeli shekel", "status": "active"},
+            {"code": "INR", "symbol": "₹", "name": "Indian rupee", "status": "active"},
+            {"code": "JPY", "symbol": "¥", "name": "Japanese yen", "status": "active"},
+            {"code": "KRW", "symbol": "₩", "name": "South Korean won", "status": "active"},
+            {
+                "code": "LTL",
+                "symbol": "Lt",
+                "name": "Lithuanian litas",
+                "status": "deprecated",
+                "deprecation_date": "2015-01-01",
+            },
+            {
+                "code": "LVL",
+                "symbol": "Ls",
+                "name": "Latvian lats",
+                "status": "deprecated",
+                "deprecation_date": "2014-01-01",
+            },
+            {"code": "MXN", "symbol": "Mex$", "name": "Mexican peso", "status": "active"},
+            {"code": "MYR", "symbol": "RM", "name": "Malaysian ringgit", "status": "active"},
+            {"code": "NOK", "symbol": "kr", "name": "Norwegian krone", "status": "active"},
+            {"code": "NZD", "symbol": "NZ$", "name": "New Zealand dollar", "status": "active"},
+            {"code": "PHP", "symbol": "₱", "name": "Philippine peso", "status": "active"},
+            {"code": "PLN", "symbol": "zł", "name": "Polish zloty", "status": "active"},
+            {"code": "RON", "symbol": "lei", "name": "Romanian leu", "status": "active"},
+            {"code": "SEK", "symbol": "kr", "name": "Swedish krona", "status": "active"},
+            {"code": "SGD", "symbol": "S$", "name": "Singapore dollar", "status": "active"},
+            {"code": "THB", "symbol": "฿", "name": "Thai baht", "status": "active"},
+            {"code": "TRY", "symbol": "₺", "name": "Turkish lira", "status": "active"},
+            {"code": "USD", "symbol": "$", "name": "US dollar", "status": "active"},
+            {"code": "ZAR", "symbol": "R", "name": "South African rand", "status": "active"},
+        ],
+    }
+
+    _available_currencies = [curr["code"] for curr in _available_currencies_detailed["currencies"]]
+
+    _active_currencies = [
+        curr["code"]
+        for curr in _available_currencies_detailed["currencies"]
+        if curr["status"] == "active"
     ]
 
     @property
@@ -51,30 +83,75 @@ class ExchangeRateProvider:
         return self._base_currency
 
     @property
-    def available_currencies_detailed(self) -> list[tuple[str, str | None]]:
-        """Available currencies code + symbol. Parameter of the API"""
-        return self._available_currencies.copy()
+    def available_currencies_detailed(self) -> dict[str, str | list[dict[str, str]]]:
+        """Availble currencies.
+
+        The returned dictionary has a "updated_date" that is the date at which this
+        list has been created (to define a starting date when checking for
+        deprecated currencies). The "status" key has as value "active" or "deprecated"
+        whether the currency has been withdrawn. For deprecated currencies there is also
+        the "deprecation_date" key that indicate the withdrawn date. This list contain
+        also currencies that may be deprecated in the future. So is not a source of truth
+        for dates bigger than "updated_date".
+
+        dates are string in iso-format. deprecation date represent the date for which
+        the rate is no more available. e.g. for LTL, the rate for 2014-12-31 is still
+        available.
+
+        example of the returned dictionary:
+        ```
+        "updated_date": "2025-10-01",
+        "currencies": [
+            {"code": "GBP", "symbol": "£", "name": "Pound sterling", "status": "active"},
+            {"code": "HKD", "symbol": "HK$", "name": "Hong Kong dollar", "status": "active"},
+            {
+                "code": "LTL",
+                "symbol": "Lt",
+                "name": "Lithuanian litas",
+                "status": "deprecated",
+                "deprecation_date": "2015-01-01",
+            },
+            ...
+        ]
+        ```
+        """
+
+        # return a copy of it
+        return {
+            "updated_date": self._available_currencies_detailed["updated_date"],
+            "currencies": [
+                curr_dict.copy() for curr_dict in self._available_currencies_detailed["currencies"]
+            ],
+        }
 
     @property
     def available_currencies(self) -> list[str]:
-        """Available currencies code. Parameter of the API"""
-        return [curr[0] for curr in self._available_currencies]
+        """Available currencies code. These currencies include also the
+        deprecated one."""
+        return self._available_currencies.copy()
+
+    @property
+    def active_currencies(self) -> list[str]:
+        """Active currencies code. These currencies are active only at a certain time
+        (see available_currencies_detailed)."""
+
+        return self._active_currencies.copy()
 
     @property
     def minimum_available_date(self) -> date:
         """Minimum date for which exchange rates are available.
-        It is 2000-01-01."""
+        It is 2001-01-01."""
         return self._minimum_date
 
     @property
     def maximum_available_date(self) -> date:
         """Maximum date for which exchange rates are not available.
         If today is 01-12, exchange rate are not available for
-        01-12 and 01-11."""
+        01-12 and 01-11.
+        To get this value, the system time is used. If it isn't correct it can lead
+        to some problems."""
 
-        # The library datetime uses the date of the system. So there could be errors
-        # if the system is not updated
-        return date.today() - datetime.timedelta(days=1)
+        return date.today() - timedelta(days=1)
 
     def get_exchange_rate(
         self,
@@ -99,16 +176,20 @@ class ExchangeRateProvider:
                 available dates, the dictionary contain a 'from_currency' keys (always
                 present). The format is as follow:
 
-                # {
-                #     'from_currency': 'EUR',
-                #     '2035-01-01': ['USD', 'CAD', 'JPY'],
-                #     '2055-10-25': ['USD', 'CAD', 'JPY'],
-                # }
+                ```
+                {
+                    'from_currency': 'EUR',
+                    '2035-01-01': ['USD', 'CAD', 'JPY'],
+                    '2055-10-25': ['USD', 'CAD', 'JPY'],
+                }
+                ```
 
         Raise
         -----
-            ExchangeRateApiError: when an error occour while fetching data from the
-                external API (e.g. when there is not internet connection).
+            - TimeOutApiError: if a timeout error occour
+            - ConnectionApiError: if a connection error occour (eg missin connection)
+            - ExchangeRateApiError: when another error occour while fetching data from the
+                external API.
         """
 
         # Since "EUR" is used as base_currency, even if required ("EUR" in currencies)
@@ -162,7 +243,7 @@ class ExchangeRateProvider:
             _, end_date_is_valid = self._get_dates(end_date)
 
             # We don't exclude all dates just because the start_date is not valid, since
-            # it can be lower than the possible values (i.e. 2000-01-01)
+            # it can be lower than the possible values (i.e. 2001-01-01)
 
             # TODO: Is this the best way to do this?????
             out_range_date: list[date] = []
@@ -214,7 +295,9 @@ class ExchangeRateProvider:
                 "&detail=dataonly&format=jsondata"
             )
 
-            response = requests.get(url, timeout=5)
+            headers = {"Accept": "application/vnd.sdmx.data+json;version=1.0.0-wd"}
+
+            response = requests.get(url, headers=headers, timeout=2)
 
             if response.status_code != 200:
                 raise ExchangeRateApiError(
@@ -304,6 +387,8 @@ class ExchangeRateProvider:
             for curr in currencies:
                 if curr not in currency_list:
                     for _, exc_date in index_list:
+                        # for deprecated currencies the output will not include the
+                        # full index list
                         key = exc_date.isoformat()
                         out_range_rate.setdefault(key, [])
                         out_range_rate[key].append(curr)
@@ -318,14 +403,16 @@ class ExchangeRateProvider:
 
                 # Can't use the first and last keys since the index can be unsorted. See
                 # docs (or above on sorting returned_date_list)
+                # int is applied to each key of conversion_dict
                 # get last key
                 max_idx = max(map(int, conversion_dict))
                 # get first key
                 min_idx = min(map(int, conversion_dict))
 
                 for idx, exc_date in index_list:
-                    # print(idx, exc_date, curr, min_idx, max_idx)
                     if idx < min_idx or idx > max_idx:
+                        # if the currency is not available for some days (e.g. get
+                        # deprecated), the index is not present
                         key = exc_date.isoformat()
                         out_range_rate.setdefault(key, [])
                         out_range_rate[key].append(curr)
@@ -336,6 +423,12 @@ class ExchangeRateProvider:
 
                         # If the value is null we take the previous one. If that
                         # is null we take the previous one and so on.
+                        # TODO: what happen if I hask for a deprecated currency
+                        # in a range that include the withdrawn date? In that case,
+                        # for date bigger than that date, the exchange rate is
+                        # still returned but with the wrong value. In this case,
+                        # for that date it should be returned as out of range.
+                        # Maybe instead of doing j >= 0 we can do idx - j >= 7 and j >= 0
                         j = idx - 1
                         while exchange_rate is None and j >= 0:
                             exchange_rate = conversion_dict.get(str(idx), [None])[0]
@@ -368,6 +461,12 @@ class ExchangeRateProvider:
 
             return conversion_rate_list, out_range_rate
 
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout) as e:
+            raise TimeOutApiError("Timeout error while fetching exchange rates") from e
+
+        except requests.exceptions.ConnectionError as e:
+            raise ConnectionApiError("Connection error while fetching exchange rates") from e
+
         except requests.exceptions.RequestException as e:
             raise ExchangeRateApiError("Error while fetching exchange_rates") from e
 
@@ -377,7 +476,7 @@ class ExchangeRateProvider:
         Return the begin_date of the date range and if that date is valid.
         If it's valid it is True, else False is returned.
         """
-        begin_date = exc_date - datetime.timedelta(days=day_range)
+        begin_date = exc_date - timedelta(days=day_range)
 
         if exc_date >= self.maximum_available_date or exc_date < self._minimum_date:
             is_valid = False
@@ -386,3 +485,150 @@ class ExchangeRateProvider:
             is_valid = True
 
         return begin_date, is_valid
+
+    def get_deprecated_curr(
+        self,
+        currencies: list[str],
+        begin_date: date,
+        end_date: date | None = None,
+    ) -> list[dict[str, str]]:
+        """Get deprecated currencies
+        Return also currencies that are not available for more than a month (even if
+        not deprecated), like ISK.
+
+        Paramters
+        ---------
+            - currencies (list) : list of currencies to check
+            - begin_date (datetime.date) : date from which to start the check. Ideally
+                should be a date for which the provided currency list contain currencies
+                that are known to be active.
+            - end_date (datetime.date or None) : end date of the check range. Used mostly
+                for testing.
+
+        Returns
+        -------
+            A list of dictionaries containing the found deprecated (or not available)
+            currencies. The format is as follow:
+
+            ```json
+            [
+                {
+                    "code": "LTL",
+                    "deprecation_date": datetime.date(2015, 01, 01)
+                },
+                {
+                    "code": "LVL",
+                    "deprecation_date": datetime.date(2014, 01, 01)
+                },
+                ...
+            ]
+
+            ```
+
+        """
+        # begin_date should be a date for which the withdrawn currencies are known
+
+        # Remove possible duplicate. Remove also the base currency, if present (discard
+        # will not raise any error if base_currency is not present)
+        currencies = set(currencies)
+        currencies.discard(self.base_currency)
+        currencies = list(currencies)
+
+        # we use the previous month
+        start_date, is_valid = self._get_dates(begin_date, day_range=30)
+
+        # The API exclude already non finished months
+        # if start_date is 2024-12-24, the returned date will start at 2025-01-01 (i.e. 2025-01)
+        # if end_date is 2025-04-12, the returned date will end at 2025-03-30 (i.e. 2025-03)
+        if end_date is None:
+            end_date = self.maximum_available_date
+
+        if not is_valid and start_date > end_date:
+            raise ValueError("Wrong input date")
+
+        # API require that currencies are given as "USD+EUR+CAD+NYZ"...
+        currency = "+".join(currencies)
+
+        # with detail=dataonly the json file given is smaller
+        url = (
+            f"https://data-api.ecb.europa.eu/service/data/EXR/"
+            f"M.{currency}.{self.base_currency}.SP00.A?"
+            f"startPeriod={start_date}&endPeriod={end_date}"
+            "&detail=dataonly&format=jsondata"
+        )
+
+        headers = {"Accept": "application/vnd.sdmx.data+json;version=1.0.0-wd"}
+
+        try:
+            response = requests.get(url, headers=headers, timeout=2)
+
+            if response.status_code != 200:
+                raise ExchangeRateApiError(
+                    f"Response.status_code != 200. Returned status_code:{response.status_code}",
+                )
+            data = response
+
+            if not response.content:
+                raise ExchangeRateApiError("Empty Response.content")
+
+            data = response.json()
+
+            # each date have only the year and month. eg: "2008-12"
+            returned_date_list = [
+                (idx, d["name"])
+                for idx, d in enumerate(data["structure"]["dimensions"]["observation"][0]["values"])
+            ]
+
+            returned_date_list = sorted(returned_date_list, key=lambda x: x[1])
+
+            # ---- create output
+            currency_list = [
+                curr["id"] for curr in data["structure"]["dimensions"]["series"][1]["values"]
+            ]
+
+            # If exchange rate are not available in that date range with that currency,
+            # the currency is not returned
+            deprecated_curr = []
+            for curr in currencies:
+                if curr not in currency_list:
+                    deprecated_curr.append({"code": curr, "deprecation_date": None})
+
+            for i, curr in enumerate(currency_list):
+                position = f"0:{i}:0:0:0"
+
+                conversion_dict = data["dataSets"][0]["series"][position]["observations"]
+
+                missing_dates = []
+                for idx, date_month in returned_date_list:
+                    if str(idx) not in conversion_dict:
+                        missing_dates.append(date_month)
+
+                # For BGN we would get a wrong result if the begin_date is at the
+                # beginning of 2000.
+                # The result would be:
+                # {'code': 'BGN', 'deprecation_date': datetime.date(2000, 1, 1)},
+                # This because data for that currency are available after 2000-07
+                # To not overcomplicate the code, the minimum date has been set
+                # to 2000-01-01
+
+                if missing_dates:
+                    missing_dates = sorted(missing_dates)
+
+                    date_month = missing_dates[0]
+
+                    year = int(date_month[:4])
+                    month = int(date_month[5:7])
+                    deprecation_date = date(year, month, 1)
+
+                    deprecated_curr.append({"code": curr, "deprecation_date": deprecation_date})
+
+            return deprecated_curr
+
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout) as e:
+            raise TimeOutApiError("Timeout error while fetching exchange rates") from e
+
+        except requests.exceptions.ConnectionError as e:
+            raise ConnectionApiError("Connection error while fetching exchange rates") from e
+
+        except requests.exceptions.RequestException as e:
+            raise ExchangeRateApiError("Error while fetching exchange_rates") from e

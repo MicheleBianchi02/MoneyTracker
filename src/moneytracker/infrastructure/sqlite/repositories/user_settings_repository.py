@@ -1,6 +1,8 @@
 import json
 import sqlite3
+from datetime import date
 
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.setting import Setting
 from moneytracker.core.exceptions import (
     DuplicateEntityError,
@@ -226,24 +228,22 @@ class UserSettingRepository(AbstractUserSettingRepository):
                 f"setting_name:{setting_name}, "
             ) from e
 
-    def add_currency(
+    def add_user_currency(
         self,
         id_user: int,
         currency_code: str,
-        currency_symbol: str | None,
     ) -> None:
         cursor = self._connection.cursor()
 
         sql = """
             INSERT INTO user_currencies(
                 id_user,
-                currency_code,
-                currency_symbol)
+                code)
             VALUES
-                (?, ?, ?)
+                (?, ?)
         """
 
-        parameters = (id_user, currency_code, currency_symbol)
+        parameters = (id_user, currency_code)
 
         try:
             cursor.execute(sql, parameters)
@@ -259,43 +259,70 @@ class UserSettingRepository(AbstractUserSettingRepository):
                 "Error while adding user specific currency: "
                 f"id_user:{id_user}, "
                 f"currency_code:{currency_code}, "
-                f"currency_symbol:{currency_symbol}. "
             ) from e
 
-    def get_currency_list(self, id_user: int) -> list[tuple[str, str]]:
+    def get_user_currency(self, id_user: int, is_active: bool | None) -> list[Currency]:
         cursor = self._connection.cursor()
 
         sql = """
             SELECT
-                currency_code,
-                currency_symbol
+                C.code,
+                C.symbol,
+                C.name,
+                C.is_active,
+                C.deprecation_date
             FROM 
-                user_currencies
+                currencies C
+            INNER JOIN
+                user_currencies U ON U.code = C.code
             WHERE
-                id_user = ?
+                U.id_user = ?
         """
-        parameters = (id_user,)
+
+        parameters = [id_user]
+
+        if is_active is not None:
+            sql += " AND C.is_active = ?"
+            parameters.append(1 if is_active else 0)
 
         try:
             cursor.execute(sql, parameters)
-            res = cursor.fetchall()
+            currencies = cursor.fetchall()
+
+            currency_list = []
+            for curr in currencies:
+                if curr[4] is not None:
+                    dep_date = date.fromisoformat(curr[4])
+                else:
+                    dep_date = None
+
+                currency_list.append(
+                    Currency(
+                        code=curr[0],
+                        symbol=curr[1],
+                        name=curr[2],
+                        is_active=True if curr[3] == 1 else False,
+                        deprecation_date=dep_date,
+                    )
+                )
+
             cursor.close()
 
-            return res
+            return currency_list
 
         except sqlite3.DatabaseError as e:
             raise RepositoryError(
                 f"Error while getting currencies for user with: id_user:{id_user}",
             ) from e
 
-    def delete_currency(self, id_user: int, currency_code: str) -> None:
+    def delete_user_currency(self, id_user: int, currency_code: str) -> None:
         cursor = self._connection.cursor()
 
         sql = """
             DELETE FROM
                 user_currencies
             WHERE
-                id_user = ? AND currency_code = ?
+                id_user = ? AND code = ?
         """
 
         parameters = (id_user, currency_code)
@@ -324,7 +351,7 @@ class UserSettingRepository(AbstractUserSettingRepository):
             FROM
                 user_currencies
             WHERE
-                id_user = ? AND currency_code = ?
+                id_user = ? AND code = ?
         """
 
         parameters = (id_user, currency_code)

@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import date
 
 from moneytracker.core.exceptions import (
     DuplicateEntityError,
@@ -27,19 +28,29 @@ EDIT_TR_TASK_NAME = "edit_transaction"
 DELETE_TR_TASK_NAME = "delete_transaction"
 
 ADD_SETTING_TASK_NAME = "add_setting"
-ADD_CURRENCY_TASK_NAME = "add_currency"
-DELETE_CURRENCY_TASK_NAME = "delete_currency"
+ADD_USER_CURRENCY_TASK_NAME = "add_user_currency"
+DELETE_USER_CURRENCY_TASK_NAME = "delete_user_currency"
 
 ADD_EXC_RATE_TASK_NAME = "add_exc_rate"
 EDIT_EXC_RATE_TASK_NAME = "edit_exc_rate"
+DELETE_EXC_RATE_TASK_NAME = "delete_exc_rate"
 
 ADD_APP_CONFIG_TASK_NAME = "add_app_config"
 EDIT_APP_CONFIG_TASK_NAME = "edit_app_config"
 DELETE_APP_CONFIG_TASK_NAME = "delete_app_config"
+ADD_APP_CURRENCY_TASK_NAME = "add_upd_app_currency"
+EDIT_APP_CURRENCY_TASK_NAME = "edit_app_currency"
 
 
 END_WORKER_TASK_NAME = "end_task"
 
+
+# Used to add the deprecation date to the config table name
+DEPRECATION_CHECK_DATE_CONFIG_NAME = "deprecation_check_date"
+
+# This is the name of the column saved in the database. It contains the starting date
+# from which the exchange rate started to get saved. This string should never change.
+EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +70,8 @@ def writer_worker(uow: AbstractUnitOfWork | None = None) -> None:
             end = _complete_task(uow)
 
         else:
-            # in this way calling with uow:
-            # will be the same as doing with manage_uow() as uow:
-            end = _complete_task(manage_uow())
+            with manage_uow() as uow:
+                end = _complete_task(uow)
 
         if end is not None:
             break
@@ -294,14 +304,13 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
-    elif task_name == ADD_CURRENCY_TASK_NAME:
+    elif task_name == ADD_USER_CURRENCY_TASK_NAME:
         try:
             id_user = args[0]
             currency_code = args[1]
-            currency_symbol = args[2]
 
             with uow:
-                uow.user_setting.add_currency(id_user, currency_code, currency_symbol)
+                uow.user_setting.add_user_currency(id_user, currency_code)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -310,13 +319,13 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
-    elif task_name == DELETE_CURRENCY_TASK_NAME:
+    elif task_name == DELETE_USER_CURRENCY_TASK_NAME:
         try:
             id_user = args[0]
             currency_code = args[1]
 
             with uow:
-                uow.user_setting.delete_currency(id_user, currency_code)
+                uow.user_setting.delete_user_currency(id_user, currency_code)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -378,6 +387,46 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
+    elif task_name == ADD_APP_CURRENCY_TASK_NAME:
+        try:
+            upd_date = args[0]
+            currency_list = args[1]
+
+            with uow:
+                if isinstance(upd_date, date):
+                    upd_date = upd_date.isoformat()
+
+                uow.app_config.add(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
+                if currency_list:
+                    uow.app_config.add_upd_currency_list(currency_list)
+
+            logger.info(f"Task completed, job_id:{job_id}")
+            update_status(job_id, COMPLETED_CODE)
+
+        except (DuplicateEntityError, RepositoryError, Exception) as e:
+            logger.exception(str(e))
+            update_status(job_id, FAILED_CODE, str(e))
+
+    elif task_name == EDIT_APP_CURRENCY_TASK_NAME:
+        try:
+            upd_date = args[0]
+            currency_list = args[1]
+
+            with uow:
+                if isinstance(upd_date, date):
+                    upd_date = upd_date.isoformat()
+
+                uow.app_config.edit(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
+                if currency_list:
+                    uow.app_config.add_upd_currency_list(currency_list)
+
+            logger.info(f"Task completed, job_id:{job_id}")
+            update_status(job_id, COMPLETED_CODE)
+
+        except (EntityNotFoundError, RepositoryError, Exception) as e:
+            logger.exception(str(e))
+            update_status(job_id, FAILED_CODE, str(e))
+
     # ----------------------
     # --- Exchange rates ---
     # ----------------------
@@ -393,7 +442,7 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
-        except (InvalidParameterError, DuplicateEntityError, Exception) as e:
+        except (InvalidParameterError, DuplicateEntityError, RepositoryError, Exception) as e:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
@@ -408,7 +457,24 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
-        except (EntityNotFoundError, Exception) as e:
+        except (EntityNotFoundError, RepositoryError, Exception) as e:
+            logger.exception(str(e))
+            update_status(job_id, FAILED_CODE, str(e))
+
+    elif task_name == DELETE_EXC_RATE_TASK_NAME:
+        try:
+            exc_rate_list = args[0]
+
+            with uow:
+                # using an executemany would be more efficient
+                # but we assume this will "never" occour
+                for rate in exc_rate_list:
+                    uow.exchange_rate.delete(rate)
+
+            logger.info(f"Task completed, job_id:{job_id}")
+            update_status(job_id, COMPLETED_CODE)
+
+        except (RepositoryError, Exception) as e:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 

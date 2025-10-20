@@ -236,10 +236,16 @@ before the exchange rates are available and, when a date doesn't exist, the libr
 take the preceding days. Those case are ignored since there are few of them and can't be
 done easly (how to handle future currencies withdrawal?).
 
+There is another problem that can occour. It happen when asking for the currency ISK.
+From 2008 to 2019 the data are not available (unavailable also on the official web
+page). So, we choose to ignore this currency since it represent a limited amount of
+transactions.
+
 It is set a minimum date, for which the exchange rate will not be required to the API but
-will be marked as not available. This date is 2000-01-01. Some exchange rate may not exist
-also for date above this limit. For example consider the BGN, rate are available from
-2000-07-19 (see: https://data.ecb.europa.eu/currency-converter). In this case there can
+will be marked as not available. This date is 2001-01-01.
+2001 has been chosen instead of 2000, because some currency were not available in that
+date. For example consider BGN, rate are available from 2000-07-19
+(see: https://data.ecb.europa.eu/currency-converter). In this case there can
 be two things happening when requiring a date below that date:
 
 - If another currency is required for which exchange rate are available past 2000-07-19
@@ -258,7 +264,7 @@ only RON alone). In this case, we take the value of the previous date since the 
 with the API provider (anyway this seems to occour only for RON with PLN for very old dates)
 
 Another problem that can occour (with unknown reason) is that sometimes the returned date
-arn't sorted. This happen for example when requiring currencies (BGN, USD) (not the whole
+aren't sorted. This happen for example when requiring currencies (BGN, USD) (not the whole
 available currencies, seems to happen only with BGN requested with few more currencies),
 from 2000-07-18 -> 2000-07-21. The returned date list will be orderd in this way:
 
@@ -308,6 +314,8 @@ returned values doesn't match the ascending order of dates, but rather the retur
 I.e. 2000-07-19 -> "0", ..., 2000-07-14 -> "3". So, it is necessary to sort dates while
 moving also those index. This phenomena seems to occour only in special cases and is
 rather unlikly to happen.
+Another way to get this effect is to fetch for USD and ISK monthly avaraged (M. instead
+of D.) in a range 2008-01-01 -> 2020-01-01
 
 The input is the date at which the expenses happen (the date inserted in the database).
 With the European Central Banck (ECB) API we get an avarage on that day.
@@ -315,7 +323,7 @@ With the European Central Banck (ECB) API we get an avarage on that day.
 If the date is the current date or it is the day after but closely after 00:00
 the output file doesn't contain the required date
 
-The outpout is ordered with currency in alphabetic order, indipendently on the
+The output is ordered with currency in alphabetic order, indipendently on the
 order we give to the url.
 
 See: https://data.ecb.europa.eu/help/api/data

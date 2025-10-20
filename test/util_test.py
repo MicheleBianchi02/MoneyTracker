@@ -30,7 +30,7 @@ class UtilTest:
         """Generate random date with the given year. If year is None generate
         a random year"""
         if year is None:
-            year = random.randint(2000, 2024)
+            year = random.randint(2001, 2024)
         month = random.randint(1, 12)
         day = random.randint(1, 31)
 

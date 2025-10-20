@@ -1,5 +1,6 @@
 import logging
 
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.setting import Setting
 from moneytracker.core.exceptions import (
     CurrencyNotFoundError,
@@ -10,12 +11,12 @@ from moneytracker.core.exceptions import (
     ServiceSettingNotFoundError,
 )
 from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from moneytracker.core.services.exc_rate_service import exc_rate_service
+from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.infrastructure.job_manager import complete_task
 from moneytracker.infrastructure.worker import (
-    ADD_CURRENCY_TASK_NAME,
     ADD_SETTING_TASK_NAME,
-    DELETE_CURRENCY_TASK_NAME,
+    ADD_USER_CURRENCY_TASK_NAME,
+    DELETE_USER_CURRENCY_TASK_NAME,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,6 @@ class UserSettingService:
         uow: AbstractUnitOfWork,
         id_user: int,
         currency_code: str,
-        currency_symbol: str | None,
     ) -> str:
         """Add user specific currency to the database.
 
@@ -118,8 +118,6 @@ class UserSettingService:
             - id_user (int) : id of the user
             - currency_code (str) : code of the currency. It should be composed of 3
                 characters (e.g. 'EUR', 'USD').
-            - currency_symbol (str or None) : symbol of the currency (e.g. '$', '€'). If
-                None no symbol is saved in the database.
 
         Returns
         -------
@@ -139,14 +137,11 @@ class UserSettingService:
             are equal, indipendently on the symbol.
         """
 
-        logger.info(
-            f"Adding currency {currency_code} with symbol {currency_symbol} "
-            f"to the user with id_user {id_user}"
-        )
+        logger.info(f"Adding currency {currency_code} to the user with id_user:{id_user}")
 
         try:
             with uow:
-                curr_list = uow.user_setting.get_currency_list(id_user)
+                curr_list = uow.user_setting.get_user_currency(id_user)
 
             if currency_code in curr_list:
                 logger.error(
@@ -157,20 +152,18 @@ class UserSettingService:
                 )
 
             currency_code = currency_code.upper()
-            if not exc_rate_service.validate_currency(currency_code):
+            if not ExchangeRateService().validate_currency(currency_code):
                 logger.error(f"{currency_code} is not a valid currency")
                 raise ServiceInvalidCurrencyError()
 
-            args = (id_user, currency_code, currency_symbol)
-            complete_task(ADD_CURRENCY_TASK_NAME, args)
+            args = (id_user, currency_code)
+            complete_task(ADD_USER_CURRENCY_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def get_currency_list(
-        self, uow: AbstractUnitOfWork, id_user: int | None
-    ) -> list[tuple[str, str]]:
+    def get_currency_list(self, uow: AbstractUnitOfWork, id_user: int | None) -> list[Currency]:
         """Get user specific currency from the database.
 
         Parameters
@@ -181,10 +174,6 @@ class UserSettingService:
         Returns
         -------
             A list of all currencies pertaining to that user.
-            The format is: [ (currency_code_1, symbol_1), (currency_code_2, symbol_2)... ]
-            An example is:
-                [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
-            If the currency has no symbol, None is returned.
 
         Raises
         ------
@@ -196,9 +185,9 @@ class UserSettingService:
         try:
             if id_user is not None:
                 with uow:
-                    return uow.user_setting.get_currency_list(id_user)
+                    return uow.user_setting.get_user_currency(id_user)
 
-            return exc_rate_service.available_currencies_detailed
+            return ExchangeRateService().active_currencies_detailed
 
         except RepositoryError as e:
             logger.exception(str(e))
@@ -223,7 +212,8 @@ class UserSettingService:
 
         try:
             with uow:
-                curr_list = uow.user_setting.get_currency_list(id_user)
+                curr_list = uow.user_setting.get_user_currency(id_user)
+            curr_list = [curr.code for curr in curr_list]
 
             currency_code = currency_code.upper()
 
@@ -238,7 +228,7 @@ class UserSettingService:
                 )
 
             args = (id_user, currency_code)
-            complete_task(DELETE_CURRENCY_TASK_NAME, args)
+            complete_task(DELETE_USER_CURRENCY_TASK_NAME, args)
 
         except RepositoryError as e:
             logger.exception(str(e))

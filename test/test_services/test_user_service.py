@@ -1,10 +1,11 @@
 import threading
+from multiprocessing import Queue
 
 import pytest
 
 from moneytracker.core.exceptions import UsernameAlreadyPresentError
 from moneytracker.core.services.user_service import UserService
-from moneytracker.infrastructure import worker
+from moneytracker.infrastructure import task_queue, worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
@@ -28,10 +29,25 @@ def connection_pool(tmp_path) -> ConnectionPool:
     return connection_pool
 
 
-def test_add_user(connection_pool):
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+@pytest.fixture
+def isolated_worker(monkeypatch, connection_pool):
+    """Starts a worker with an isolated task queue for each test."""
+    q = Queue()
+    monkeypatch.setattr(task_queue, "task_queue", q)
 
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    worker_thread = threading.Thread(
+        target=worker.writer_worker, args=(uow_worker,), daemon=False
+    )
+    worker_thread.start()
+
+    yield
+
+    worker.end_worker()
+    worker_thread.join(timeout=5)
+
+
+def test_add_user(connection_pool: ConnectionPool, isolated_worker):
     uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
@@ -54,13 +70,8 @@ def test_add_user(connection_pool):
         assert username == user.username
         assert "$argon2id$" in user.password
 
-    worker.end_worker()
 
-
-def test_authenticate(connection_pool):
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
-
+def test_authenticate(connection_pool, isolated_worker):
     uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
@@ -79,13 +90,8 @@ def test_authenticate(connection_pool):
     user = user_service.authenticate(uow, username, UtilTest.generate_random_string())
     assert user is None
 
-    worker.end_worker()
 
-
-def test_edit(connection_pool):
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
-
+def test_edit(connection_pool, isolated_worker):
     uow = UnitOfWork(connection_pool._get_connection())
 
     user_service = UserService()
@@ -109,5 +115,3 @@ def test_edit(connection_pool):
 
     user = user_service.authenticate(uow, username, password)
     assert user is None
-
-    worker.end_worker()

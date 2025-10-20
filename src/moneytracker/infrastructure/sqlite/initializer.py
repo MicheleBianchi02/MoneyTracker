@@ -1,6 +1,7 @@
 import sqlite3
 
 from moneytracker import default_settings
+from moneytracker.core.exceptions import RepositoryError
 
 
 def initialize_database(connection: sqlite3.Connection) -> None:
@@ -15,10 +16,12 @@ def initialize_database(connection: sqlite3.Connection) -> None:
 
         _init_user_settings(connection)
 
+        _init_currencies(connection)
+
         _init_app_config(connection)
 
     except sqlite3.DatabaseError as e:
-        raise RuntimeError(f"Error while initializing the database: {str(e)}") from e
+        raise RepositoryError(f"Error while initializing the database: {str(e)}") from e
 
 
 def _init_user(connection: sqlite3.Connection) -> None:
@@ -322,21 +325,36 @@ def _init_user_settings(connection: sqlite3.Connection) -> None:
         ) STRICT;
     """)
 
+    cursor.close()
+
+    _fill_settings(connection)
+
+
+def _init_currencies(connection: sqlite3.Connection) -> None:
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS currencies(
+            code TEXT PRIMARY KEY,
+            symbol TEXT,
+            name TEXT,  -- like a description
+            is_active INTEGER,
+            deprecation_date TEXT  -- date in iso format
+        ) STRICT;
+    """)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS user_currencies(
             id_user INTEGER NOT NULL,
-            currency_code TEXT,
-            currency_symbol TEXT,
+            code TEXT,
             FOREIGN KEY (id_user) REFERENCES users (id_user) ON DELETE CASCADE,
-            UNIQUE (id_user, currency_code)
+            UNIQUE (id_user, code)
             ) STRICT;
         """
     )
 
     cursor.close()
-
-    _fill_settings(connection)
 
 
 def _fill_settings(connection: sqlite3.Connection) -> None:

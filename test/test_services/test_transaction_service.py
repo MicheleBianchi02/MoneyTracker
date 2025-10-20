@@ -2,18 +2,22 @@ import calendar
 import random
 import threading
 from datetime import date, timedelta
+from multiprocessing import Queue
 
 import pytest
 
 from moneytracker.core.domain.category import CategoryIn
 from moneytracker.core.domain.exchange_rate import ExchangeRate
 from moneytracker.core.domain.transaction import TransactionIn
-from moneytracker.core.services.startup import EXC_DATE_CONFIG_NAME
+from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.core.services.transaction_service import TransactionService
-from moneytracker.infrastructure import worker
+from moneytracker.infrastructure import task_queue, worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
-from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import (
+    ExchangeRateProvider,
+)
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from moneytracker.infrastructure.worker import EXC_DATE_CONFIG_NAME
 from test.util_test import UtilTest
 
 
@@ -35,12 +39,26 @@ def connection_pool(tmp_path) -> ConnectionPool:
     return connection_pool
 
 
-def test_add_transaction(connection_pool):
+@pytest.fixture
+def isolated_worker(monkeypatch, connection_pool):
+    """Starts a worker with an isolated task queue for each test."""
+    q = Queue()
+    monkeypatch.setattr(task_queue, "task_queue", q)
+
+    uow_worker = UnitOfWork(connection_pool._get_connection())
+    worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
+    worker_thread.start()
+
+    yield
+
+    worker.end_worker()
+    worker_thread.join(timeout=5)
+
+
+def test_add_transaction(connection_pool, isolated_worker):
     """In this test we just need to see if the exchange rates are added correctly.
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
 
     tr_service = TransactionService()
     uow = UnitOfWork(connection_pool._get_connection())
@@ -79,14 +97,19 @@ def test_add_transaction(connection_pool):
         exc_provider = ExchangeRateProvider()
 
         from_curr = exc_provider.base_currency
-        available_currencies = exc_provider.available_currencies
+
+        active_currencies = ExchangeRateService()._active_currencies
+        active_currencies_code = [curr.code for curr in active_currencies]
+
+        # Add currencies to the database
+        uow.app_config.add_upd_currency_list(active_currencies)
 
         exc_list = []
 
         exc_date = date.fromisoformat(starting_date)
         end_date = date.fromisoformat(maximum_date)
         while exc_date <= end_date:
-            for curr in available_currencies:
+            for curr in active_currencies_code:
                 if curr != from_curr:
                     exc = ExchangeRate(
                         from_currency=from_curr,
@@ -120,7 +143,7 @@ def test_add_transaction(connection_pool):
                 tr_date=tr_date,
                 name=UtilTest.generate_random_string(),
                 value=random.random() * 10000,
-                currency=random.choice(available_currencies),
+                currency=random.choice(active_currencies_code),
                 description=UtilTest.generate_random_string(),
             )
         )
@@ -154,7 +177,7 @@ def test_add_transaction(connection_pool):
     with uow:
         for exc_date in month_year:
             exc_get = uow.exchange_rate.get(exc_date)
-            assert len(exc_get) == len(available_currencies) - 1
+            assert len(exc_get) == len(active_currencies_code) - 1
 
             # Dates that will never be updated above those dates since they were not
             # in use from those dates till now
@@ -174,13 +197,8 @@ def test_add_transaction(connection_pool):
                 if exc.to_currency == exc.from_currency:
                     raise AssertionError("Same currency for from_currency and to_currency")
 
-    worker.end_worker()
 
-
-def test_edit_transaction(connection_pool):
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
-
+def test_edit_transaction(connection_pool, isolated_worker):
     starting_date = "2025-01-01"
     tr_service = TransactionService()
 
@@ -257,4 +275,3 @@ def test_edit_transaction(connection_pool):
         exc_get = uow.exchange_rate.get(edit_date)
         assert exc_get != []
 
-    worker.end_worker()

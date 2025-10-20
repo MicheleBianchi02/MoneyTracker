@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.setting import Setting
 
 
@@ -58,11 +59,10 @@ class AbstractUserSettingRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_currency(
+    def add_user_currency(
         self,
         id_user: int,
         currency_code: str,
-        currency_symbol: str | None,
     ) -> None:
         """Add user specific currency to the database.
 
@@ -71,8 +71,6 @@ class AbstractUserSettingRepository(ABC):
             - id_user (int) : id of the user
             - currency_code (str) : code of the currency. It should be composed of 3
                 characters (e.g. 'EUR', 'USD').
-            - currency_symbol (str or None) : symbol of the currency (e.g. '$', '€'). If
-                None no symbol is saved in the database.
 
         Raises
         ------
@@ -91,20 +89,19 @@ class AbstractUserSettingRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_currency_list(self, id_user: int) -> list[tuple[str, str]]:
+    def get_user_currency(self, id_user: int, is_active=bool | None) -> list[Currency]:
         """Get user specific currency from the database.
 
         Parameters
         ----------
-            - id_user (int) : id of the user
+            - id_user (int) : id of the user.
+            - is_active (bool or None) : If True, return only active currencies
+                (not deprecated one), if False, return only deprecated currencies.
+                If None, return all currencies indipendently if they are active or not.
 
         Returns
         -------
-            A list of all currencies pertaining to that user.
-            The format is: [ (currency_code_1, symbol_1), (currency_code_2, symbol_2)... ]
-            An example is:
-                [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
-            If the currency has no symbol, None is returned.
+            A list of all currencies (Currency instances) pertaining to that user.
 
         Raises
         ------
@@ -114,7 +111,7 @@ class AbstractUserSettingRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_currency(self, id_user: int, currency_code: str) -> None:
+    def delete_user_currency(self, id_user: int, currency_code: str) -> None:
         """Delete user specific currency from the database.
 
         Parameters

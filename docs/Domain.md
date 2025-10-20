@@ -54,7 +54,7 @@ Let's call the first date of the year in which the app was installed, begin_date
   no exchange rate is found exchange rate with rate = 1 are still added. This should not
   happen since we added some of them at the first run (we still do that for safety reason).
 - If the transaction's date is bigger than the maximum and lower than the minimum date for
-  which the exchange rate are available ( ~yesterday and 2000-01-01 respectivelly), they are
+  which the exchange rate are available ( ~yesterday and 2001-01-01 respectivelly), they are
   ignored.
 
 Attention: when adding a transaction, we just check that one exchange rates exist in the

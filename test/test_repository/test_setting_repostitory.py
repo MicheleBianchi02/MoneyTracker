@@ -2,14 +2,15 @@ import random
 import sqlite3
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker import default_settings
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.setting import Setting
 from moneytracker.core.exceptions import DuplicateEntityError, ForeignKeyError
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.repositories.user_settings_repository import _convert_value
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -117,18 +118,18 @@ def test_get_setting(connection, setting_list: list[Setting]):
 
 
 def test_add_currency_setting(connection, setting_list) -> None:
-    currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
+    currencies = ["USD", "EUR", "CAD", "GBP", "NZD"]
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
         user_list, _ = UtilTest.fill_user_setting(uow, setting_list)
         user = random.choice(user_list)
 
         currency = random.choice(currencies)
-        uow.user_setting.add_currency(user.id, currency[0], currency[1])
+        uow.user_setting.add_user_currency(user.id, currency)
         # currencies are unique for each user
         try:
             error = False
-            uow.user_setting.add_currency(user.id, currency[0], currency[1])
+            uow.user_setting.add_user_currency(user.id, currency)
         except DuplicateEntityError:
             error = True
         finally:
@@ -140,7 +141,7 @@ def test_add_currency_setting(connection, setting_list) -> None:
         # check foreign key
         id_user = 20341232
         try:
-            uow.user_setting.add_currency(id_user, currency[0], currency[1])
+            uow.user_setting.add_user_currency(id_user, currency)
             error = True
 
         except ForeignKeyError:
@@ -152,38 +153,71 @@ def test_add_currency_setting(connection, setting_list) -> None:
 
 
 def test_get_currencies_setting(connection) -> None:
-    currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
+    currencies = ["USD", "EUR", "CAD", "GBP", "NZD"]
+    curr_list = []
+    for curr in currencies:
+        curr_list.append(
+            Currency(
+                code=curr,
+                symbol="$",  # doesn't matter
+                name="asd",
+                is_active=True,
+                deprecation_date=None,
+            )
+        )
+
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
+
+        # Add currencies to the database
+        uow.app_config.add_upd_currency_list(curr_list)
+
         user_list = UtilTest.fill_user(uow)
         for user in user_list:
             id_user = user.id
 
             for currency in currencies:
-                uow.user_setting.add_currency(id_user, currency[0], currency[1])
+                uow.user_setting.add_user_currency(id_user, currency)
 
-            curr_get = uow.user_setting.get_currency_list(id_user)
+            curr_get = uow.user_setting.get_user_currency(id_user, is_active=None)
             assert len(currencies) == len(curr_get)
             for curr in curr_get:
-                assert curr in currencies
+                assert curr.code in currencies
 
 
 def test_delete_currency_setting(connection) -> None:
-    currencies = [("USD", "$"), ("EUR", "€"), ("CAD", None), ("GBP", "£"), ("NZD", None)]
+    currencies = ["USD", "EUR", "CAD", "GBP", "NZD"]
+
+    curr_list = []
+    for curr in currencies:
+        curr_list.append(
+            Currency(
+                code=curr,
+                symbol="$",  # doesn't matter
+                name="asd",
+                is_active=True,
+                deprecation_date=None,
+            )
+        )
+
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
+
+        # Add currencies to the database
+        uow.app_config.add_upd_currency_list(curr_list)
+
         user_list = UtilTest.fill_user(uow)
         for user in user_list:
             id_user = user.id
 
             for currency in currencies:
-                uow.user_setting.add_currency(id_user, currency[0], currency[1])
+                uow.user_setting.add_user_currency(id_user, currency)
 
         curr_del = random.choice(currencies)
-        uow.user_setting.delete_currency(id_user, curr_del[0])
+        uow.user_setting.delete_user_currency(id_user, curr_del)
 
-        curr_get = uow.user_setting.get_currency_list(id_user)
-        assert curr_del not in curr_get
+        curr_get = uow.user_setting.get_user_currency(id_user, None)
+        assert curr_del not in [curr.code for curr in curr_get]
 
 
 def test_delete_user_setting(connection, setting_list):

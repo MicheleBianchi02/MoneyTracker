@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from moneytracker.core.domain.exchange_rate import Currency
+
 
 class AbstractAppConfigRepository(ABC):
     @abstractmethod
@@ -71,4 +73,12 @@ class AbstractAppConfigRepository(ABC):
             - EntityNotFounError: If the given app config's name is not in the db.
             - RepositoryError: If something went wrong with the database
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_upd_currency_list(self, currency_list: list[Currency]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_currency_list(self, is_active: bool | None = None) -> list[Currency]:
         raise NotImplementedError

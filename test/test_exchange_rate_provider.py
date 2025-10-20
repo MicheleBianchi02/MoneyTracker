@@ -1,10 +1,9 @@
 from datetime import date, timedelta
 
-from test.util_test import UtilTest
-
 from moneytracker.core.domain.exchange_rate import ExchangeRate
 from moneytracker.core.exceptions import ExchangeRateApiError
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from test.util_test import UtilTest
 
 
 def test_get_exchange_rate_provider():
@@ -132,10 +131,11 @@ def test_get_exchange_rate_provider():
     except ExchangeRateApiError as e:
         assert "Empty Response.content" == str(e)
 
-    currencies = ["BGN", "USD"]  # BGN not available from 2000-07-19
-    date_list = [date(2000, 7, 15), date(2000, 7, 21)]
-    exc_get, exc_get_dict = ExchangeRateProvider().get_exchange_rate(date_list, currencies)
-    assert exc_get_dict == {"from_currency": "EUR", date_list[0].isoformat(): ["BGN"]}
+    # This test is not valid since the minimum date is moved from 2000-01-01 to 2001-01-01
+    # currencies = ["BGN", "USD"]  # BGN not available from 2000-07-19
+    # date_list = [date(2000, 7, 15), date(2000, 7, 21)]
+    # exc_get, exc_get_dict = ExchangeRateProvider().get_exchange_rate(date_list, currencies)
+    # assert exc_get_dict == {"from_currency": "EUR", date_list[0].isoformat(): ["BGN"]}
 
 
 # Utils

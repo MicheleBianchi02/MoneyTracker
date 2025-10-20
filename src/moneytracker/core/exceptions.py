@@ -239,10 +239,21 @@ class InternalServerErrorException(AppException):
 class ApiError(Exception):
     """Base class for external API interaction errors."""
 
-    pass
+    def __init__(self, message: str):
+        super().__init__(message)
 
 
 class ExchangeRateApiError(ApiError):
     """Raised when fetching exchange rates from an external API fails."""
 
     pass
+
+
+class TimeOutApiError(ApiError):
+    def __init__(self, message: str = "TimeOut error"):
+        super().__init__(message)
+
+
+class ConnectionApiError(ApiError):
+    def __init__(self, message: str = "Connection error"):
+        super().__init__(message)

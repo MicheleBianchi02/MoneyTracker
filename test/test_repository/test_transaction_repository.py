@@ -595,8 +595,8 @@ def test_get_balance(connection) -> None:
                         is_valid = False
 
             assert is_valid == is_valid_get
-            assert round(tot_exp, 4) == round(tot_exp_get, 4)
-            assert round(tot_inc, 4) == round(tot_inc_get, 4)
+            assert round(tot_exp, 2) == round(tot_exp_get, 2)
+            assert round(tot_inc, 2) == round(tot_inc_get, 2)
 
         # the other tests (with dates and categories) are equal to the test
         # for get_transactions

@@ -77,6 +77,39 @@ class AbstractExchangeRateRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_range(
+        self,
+        begin_date: date | None,
+        end_date: date | None,
+        from_currency: str | None = None,
+        to_currency: str | None = None,
+    ) -> list[ExchangeRate]:
+        """Get the exchange rate for a given date range.
+
+        Parameters
+        ----------
+            - begin_date (datetime.date or None) : starting date of the range. If None
+                the lower limit is not set.
+            - end_date (datetime.date or None) : end date of the range. If None, the
+                upper limit is not set.
+            - from_currency (str or None) : currency from which to convert. If None, all
+                the exchange rate are returned. The default value is None.
+            - to_curency (str or None) :
+
+        Returns
+        -------
+            A list of all the exchange rate for the given range.
+            The length of the list is the same as the number of currencies saved in the
+            database.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
     def get_closest(self, date: date) -> list[ExchangeRate]:
         """Get the exchange rates closest to the given date.
 

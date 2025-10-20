@@ -130,8 +130,8 @@ class UserService:
     def get(self, uow: AbstractUnitOfWork, username: str | None) -> list[UserOut]:
         """Get User with the given username.
 
-        Paramters
-
+        Parameters
+        ----------
             - username (str or None) : username of the required user. If None all the
             Users in the db are returned
 

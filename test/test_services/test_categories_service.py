@@ -1,6 +1,7 @@
 import random
 import threading
 from datetime import date
+from multiprocessing import Queue
 
 import pytest
 
@@ -8,7 +9,7 @@ from moneytracker.core.domain.transaction import TransactionOut
 from moneytracker.core.exceptions import OperationNotPermittedError
 from moneytracker.core.services.category_service import CategoryService
 from moneytracker.core.services.transaction_service import TransactionService
-from moneytracker.infrastructure import worker
+from moneytracker.infrastructure import task_queue, worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
@@ -32,11 +33,26 @@ def connection_pool(tmp_path) -> ConnectionPool:
     return connection_pool
 
 
-def test_delete_cat(connection_pool: ConnectionPool):
-    cat_service = CategoryService()
+@pytest.fixture
+def isolated_worker(monkeypatch, connection_pool):
+    """Starts a worker with an isolated task queue for each test."""
+    q = Queue()
+    monkeypatch.setattr(task_queue, "task_queue", q)
 
     uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+    worker_thread = threading.Thread(
+        target=worker.writer_worker, args=(uow_worker,), daemon=False
+    )
+    worker_thread.start()
+
+    yield
+
+    worker.end_worker()
+    worker_thread.join(timeout=5)
+
+
+def test_delete_cat(connection_pool: ConnectionPool, isolated_worker):
+    cat_service = CategoryService()
 
     uow = UnitOfWork(connection_pool._get_connection())
     with uow:
@@ -65,17 +81,13 @@ def test_delete_cat(connection_pool: ConnectionPool):
     cat_service.delete(uow, sec.id_primary, id_user)
     cat_get = cat_service.get_primary_list(uow, id_user, None, None)
     assert sec.id_primary not in [prim.id_primary for prim in cat_get]
-    worker.end_worker()
 
 
-def test_delete_cat_with_tr(connection_pool):
+def test_delete_cat_with_tr(connection_pool, isolated_worker):
     def compare_tr(tr_list, tr_get):
         tr_list = sorted(tr_list, key=transaction_sort_key)
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
-
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
 
     tr_service = TransactionService()
     cat_service = CategoryService()
@@ -113,8 +125,6 @@ def test_delete_cat_with_tr(connection_pool):
                 # cat is not deleted
                 cat_get = cat_service.get(uow, cat.id_user, cat.year, cat.category_type)
                 assert cat in cat_get
-
-    worker.end_worker()
 
 
 # --- Utils

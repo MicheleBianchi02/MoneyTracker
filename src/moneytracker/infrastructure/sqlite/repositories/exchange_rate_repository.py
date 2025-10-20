@@ -127,6 +127,77 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
                 f"to_currency:{to_currency}. "
             ) from e
 
+    def get_range(
+        self,
+        begin_date: date | None,
+        end_date: date | None,
+        from_currency: str | None = None,
+        to_currency: str | None = None,
+    ) -> list[ExchangeRate]:
+        if begin_date is None:
+            begin_date = date(1, 1, 1)
+
+        if end_date is None:
+            end_date = date(9999, 12, 31)
+
+        begin_date = begin_date.isoformat()
+        end_date = end_date.isoformat()
+
+        cursor = self._connection.cursor()
+
+        sql = """
+            SELECT 
+                from_currency,
+                to_currency,
+                rate_date,
+                rate,
+                is_updated
+            FROM 
+                exchange_rates
+            WHERE
+                rate_date BETWEEN ? AND ?
+        """
+        parameters = [begin_date, end_date]
+
+        if to_currency is not None:
+            sql += "AND to_currency = ?"
+            parameters.append(to_currency)
+
+        if from_currency is not None:
+            sql += "AND from_currency = ?"
+            parameters.append(from_currency)
+
+        parameters = tuple(parameters)
+
+        try:
+            cursor.execute(sql, parameters)
+            rate_list = cursor.fetchall()
+
+            rate_out = []
+            for rate in rate_list:
+                rate_date = date.fromisoformat(rate[2])
+                rate_out.append(
+                    ExchangeRate(
+                        from_currency=rate[0],
+                        to_currency=rate[1],
+                        rate=rate[3],
+                        rate_date=rate_date,
+                        is_updated=True if rate[4] == 1 else False,
+                    )
+                )
+
+            cursor.close()
+            return rate_out
+
+        except sqlite3.DatabaseError as e:
+            raise RepositoryError(
+                "Error while getting exchange_rates: "
+                f"begin_date:{begin_date}, "
+                f"end_date:{end_date}, "
+                f"from_currency:{from_currency}, "
+                f"to_currency:{to_currency}. "
+            ) from e
+
     def get_closest(self, exc_date: date) -> list[ExchangeRate]:
         cursor = self._connection.cursor()
 
