@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends
 
 from moneytracker.api.dependencies import get_id_user
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.setting import Setting
 from moneytracker.core.exceptions import (
     BadRequestException,
@@ -77,7 +78,6 @@ def get_settings(
 @router.post("/currencies/", status_code=204)
 def add_currency(
     currency_code: str = Body(...),
-    currency_symbol: str | None = Body(None),
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -85,7 +85,7 @@ def add_currency(
     Adds a currency for a user.
     """
     try:
-        setting_service.add_currency(uow, id_user, currency_code, currency_symbol)
+        setting_service.add_currency(uow, id_user, currency_code)
         return {"message": "Setting edited successfully."}
 
     except ServiceInvalidCurrencyError:
@@ -96,22 +96,25 @@ def add_currency(
         raise InternalServerErrorException()
 
 
-@router.get("/currencies/available/", response_model=list[tuple[str, str | None]])
+@router.get("/currencies/available/", response_model=list[Currency])
 def get_available_currencies(
+    is_active: bool | None = None,
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves all available currencies.
     """
     try:
-        return setting_service.get_currency_list(uow, None)
+        currencies = setting_service.get_currency_list(uow, None, is_active=is_active)
+        return currencies or []
 
     except ServiceError:
         raise InternalServerErrorException()
 
 
-@router.get("/currencies/", response_model=list[tuple[str, str | None]])
+@router.get("/currencies/", response_model=list[Currency])
 def get_currencies(
+    is_active: bool | None = None,
     id_user: int = Depends(get_id_user),
     uow: AbstractUnitOfWork = Depends(get_uow),
 ):
@@ -119,7 +122,8 @@ def get_currencies(
     Retrieves all currencies for a user.
     """
     try:
-        return setting_service.get_currency_list(uow, id_user)
+        currencies = setting_service.get_currency_list(uow, id_user, is_active=is_active)
+        return currencies or []
 
     except ServiceError:
         raise InternalServerErrorException()

@@ -68,7 +68,11 @@ class CategoryService:
             - Secondary with the same name of the primary.
         """
 
-        logger.info(f"Adding {len(list(cat_list))} categories into the database.")
+        if not isinstance(cat_list, list):
+            cat_list = [cat_list]
+
+        logger.info(f"Adding {len(cat_list)} categories into the database.")
+
         try:
             with uow:
                 for cat in cat_list:

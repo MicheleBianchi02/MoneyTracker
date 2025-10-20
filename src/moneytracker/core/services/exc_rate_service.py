@@ -33,7 +33,15 @@ class ExchangeRateService:
         app_config_service = AppConfigService()
 
         with manage_uow() as uow:
-            self._active_currencies = app_config_service.get_currencies(uow, is_active=True)
+            self._currencies = app_config_service.get_currencies(uow, is_active=None)
+
+        self._active_currencies = []
+        self._not_active_currencies = []
+        for curr in self._currencies:
+            if curr.is_active:
+                self._active_currencies.append(curr)
+            else:
+                self._not_active_currencies.append(curr)
 
         self._active_codes = [curr.code for curr in self._active_currencies]
 
@@ -423,3 +431,13 @@ class ExchangeRateService:
     def active_currencies_detailed(self) -> list[Currency]:
         """Active currencies (istances of Currency)."""
         return [curr.model_copy() for curr in self._active_currencies]
+
+    @property
+    def non_active_currencies(self) -> list[str]:
+        """Non active currencies (istances of Currency)."""
+        return [curr.code for curr in self._not_active_currencies]
+
+    @property
+    def non_active_currencies_detailed(self) -> list[Currency]:
+        """Non active currencies (istances of Currency)."""
+        return [curr.model_copy() for curr in self._not_active_currencies]

@@ -140,10 +140,10 @@ class UserSettingService:
         logger.info(f"Adding currency {currency_code} to the user with id_user:{id_user}")
 
         try:
-            with uow:
-                curr_list = uow.user_setting.get_user_currency(id_user)
+            user_currencies = self.get_currency_list(uow, id_user, is_active=None)
+            user_currencies = [curr.code for curr in user_currencies]
 
-            if currency_code in curr_list:
+            if currency_code in user_currencies:
                 logger.error(
                     f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
                 )
@@ -163,13 +163,18 @@ class UserSettingService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def get_currency_list(self, uow: AbstractUnitOfWork, id_user: int | None) -> list[Currency]:
+    def get_currency_list(
+        self, uow: AbstractUnitOfWork, id_user: int | None, is_active: bool | None = None
+    ) -> list[Currency]:
         """Get user specific currency from the database.
 
         Parameters
         ----------
             - id_user (int or None) : id of the user. If None, the available currencies
                 is returned.
+            - is_active (bool or None) : if True, only active currencies are returned,
+                if False, only deprecated currencies are returned. If None, all
+                currencies are returned.
 
         Returns
         -------
@@ -185,9 +190,23 @@ class UserSettingService:
         try:
             if id_user is not None:
                 with uow:
-                    return uow.user_setting.get_user_currency(id_user)
+                    return uow.user_setting.get_user_currency(id_user, is_active=is_active)
 
-            return ExchangeRateService().active_currencies_detailed
+            exc_rate_service = ExchangeRateService()
+            if is_active is None:
+                active = exc_rate_service.active_currencies_detailed
+                non_active = exc_rate_service.non_active_currencies_detailed
+
+                currencies = []
+                currencies.extend(active)
+                currencies.extend(non_active)
+
+                return currencies
+
+            elif is_active:
+                return exc_rate_service.active_currencies_detailed
+            elif not is_active:
+                return exc_rate_service.non_active_currencies_detailed
 
         except RepositoryError as e:
             logger.exception(str(e))
