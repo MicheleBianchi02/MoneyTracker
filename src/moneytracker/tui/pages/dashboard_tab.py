@@ -42,7 +42,7 @@ class DashboardPage(Page):
             # code used to display all cat in the filter
             self._cat_code = "ncsk8swedmsf402323"
 
-            self.curr_list = setting_service.get_currency_list(uow, self.id_user)
+            self.curr_list = setting_service.get_currency_list(uow, self.id_user, is_active=True)
             self.default_currency = setting_service.get(uow, self.id_user, DEFAULT_CURRENCY_NAME)
 
         if not self.default_currency:
@@ -66,6 +66,7 @@ class DashboardPage(Page):
             "secondary": None,
             "show_id": False,
             "currency": None,
+            "show_balance": True,
         }
 
         while True:
@@ -128,6 +129,7 @@ class DashboardPage(Page):
         secondary = filters["secondary"]
         show_id = filters["show_id"]
         currency = filters["currency"]  # can also be None
+        show_balance = filters["show_balance"]
 
         month_column = False
         year_column = False
@@ -183,28 +185,32 @@ class DashboardPage(Page):
         if month_column:
             table.add_column("month")
         table.add_column("day")
+        # TODO: Is it beeter to leave only the category or to devide into 2 column
+        # for category and subcategory???
         table.add_column("category")
         table.add_column("name")
         table.add_column("value")
         table.add_column("currency")
         table.add_column("description")
 
-        with manage_uow() as uow:
-            if currency is None:
-                to_currency = self.default_currency
-            else:
-                to_currency = currency
+        is_valid = True  # in case the balance is not shown
+        if show_balance:
+            with manage_uow() as uow:
+                if currency is None:
+                    to_currency = self.default_currency
+                else:
+                    to_currency = currency
 
-            tot_exp, tot_inc, is_valid = tr_service.get_balance(
-                uow,
-                self.id_user,
-                to_currency,
-                st_date,
-                end_date,
-                cat_type,
-                primary,
-                secondary,
-            )
+                tot_exp, tot_inc, is_valid = tr_service.get_balance(
+                    uow,
+                    self.id_user,
+                    to_currency,
+                    st_date,
+                    end_date,
+                    cat_type,
+                    primary,
+                    secondary,
+                )
 
         category = self._cat_code  # in case tr_list is empty
         for tr in tr_list:
@@ -265,26 +271,29 @@ class DashboardPage(Page):
         if tr_list:
             console.print(table)
 
-            total_inc = format_value(tot_inc, self.value_format)
-            total_expe = format_value(tot_exp, self.value_format)
-            console.print(f"Total income: [green]+[/]{total_inc} {to_currency}")
-            console.print(f"Total expenses: [red]-[/]{total_expe} {to_currency}")
+            if show_balance:
+                total_inc = format_value(tot_inc, self.value_format)
+                total_expe = format_value(tot_exp, self.value_format)
+                console.print(f"Total income: [green]+[/]{total_inc} {to_currency}")
+                console.print(f"Total expenses: [red]-[/]{total_expe} {to_currency}")
 
-            balance = tot_inc - tot_exp
-            bal = abs(balance)
-            bal = format_value(bal, self.value_format)
-            if balance < 0:
-                console.print(f"Balance: [red]-[/]{bal} {to_currency}")
-            elif balance > 0:
-                console.print(f"Balance: [green]+[/]{bal} {to_currency}")
-            else:
-                console.print(f"Balance: {bal} {to_currency}")
+                balance = tot_inc - tot_exp
+                bal = abs(balance)
+                bal = format_value(bal, self.value_format)
+                if balance < 0:
+                    console.print(f"Balance: [red]-[/]{bal} {to_currency}")
+                elif balance > 0:
+                    console.print(f"Balance: [green]+[/]{bal} {to_currency}")
+                else:
+                    console.print(f"Balance: {bal} {to_currency}")
 
             if not is_valid or not is_valid_tr:
                 console.print("[yellow]\u26a0 Some currency conversion rates are not up to date[/]")
 
         else:
             console.print("\nThere are no transactions in this period.")
+
+        console.print("")  # leave some space
 
         return tr_list
 
@@ -296,13 +305,14 @@ class DashboardPage(Page):
         secondary = actual_filter["secondary"]
         show_id = actual_filter["show_id"]
         currency = actual_filter["currency"]  # can also be None
+        show_balance = actual_filter["show_balance"]
 
         console.print("\n[yellow]Filter[/]")
 
         while True:
             console.print(
                 "\nFilter by: [bold green]d[/]ate, [bold green]t[/]ype, "
-                "[bold green]c[/]ategory, [bold green]cu[/]rrency [bold green]e[/]nd"
+                "[bold green]c[/]ategory, [bold green]cu[/]rrency, [bold green]e[/]nd"
             )
             choice = Prompt.ask("Choice", choices=["d", "t", "c", "cu", "e"], default="d")
 
@@ -459,7 +469,7 @@ class DashboardPage(Page):
                                         secondary = None
 
             elif choice == "cu":
-                currency_code = [curr[0] for curr in self.curr_list]
+                currency_code = [curr.code for curr in self.curr_list]
 
                 console.print("Leave empty if the currency's transaction is to be used")
                 currency = Prompt.ask("Currency", choices=currency_code, default="")
@@ -474,21 +484,23 @@ class DashboardPage(Page):
                     "type": tr_type,
                     "primary": primary,
                     "secondary": secondary,
-                    "show_id": False,
+                    "show_id": show_id,
                     "currency": currency,
+                    "show_balance": show_balance,
                 }
 
                 return filters
 
-            filters = {
-                "st_date": st_date,
-                "end_date": end_date,
-                "type": tr_type,
-                "primary": primary,
-                "secondary": secondary,
-                "show_id": False,
-                "currency": currency,
-            }
+            # filters = {
+            #     "st_date": st_date,
+            #     "end_date": end_date,
+            #     "type": tr_type,
+            #     "primary": primary,
+            #     "secondary": secondary,
+            #     "show_id": show_id,
+            #     "currency": currency,
+            #     "show_balance": show_balance,
+            # }
 
     def _add_tr(self, console: Console) -> None:
         console.print("\n[yellow]Add Transaction[/]")
@@ -564,7 +576,7 @@ class DashboardPage(Page):
                 Prompt.ask("")
                 break
 
-            curr_list = [curr[0] for curr in self.curr_list]
+            curr_list = [curr.code for curr in self.curr_list]
             currency = Prompt.ask("Currency", choices=curr_list, default=self.default_currency)
             # If the default currency has not been defined, self.default_currency = None
             # and it will not be printed.
@@ -618,6 +630,7 @@ class DashboardPage(Page):
     def _edit_tr(self, filters, console: Console) -> None:
         filters = filters.copy()
         filters["show_id"] = True
+        filters["show_balance"] = False
 
         clear_screen()
 
@@ -700,7 +713,7 @@ class DashboardPage(Page):
                 Prompt.ask("")
                 break
 
-            curr_list = [curr[0] for curr in self.curr_list]
+            curr_list = [curr.code for curr in self.curr_list]
             currency = Prompt.ask("New currency", choices=curr_list, default=tr.currency)
 
             name = Prompt.ask("New name", default=tr.name)
@@ -780,7 +793,7 @@ class DashboardPage(Page):
                 Prompt.ask("")
                 continue
 
-            console.print("\nTransaction:")
+            console.print("\nTransaction to be deleted:")
             console.print(f"Date: {tr.tr_date.isoformat()}")
             console.print(f"Name: {tr.name}")
 

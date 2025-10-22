@@ -44,7 +44,7 @@ class ExpensePage(Page):
             # code used to dissplay all cat in the filter
             self._cat_code = "ncsk8swedmsf402323"
 
-            self.curr_list = setting_service.get_currency_list(uow, self.id_user)
+            self.curr_list = setting_service.get_currency_list(uow, self.id_user, is_active=True)
             self.default_currency = setting_service.get(uow, self.id_user, DEFAULT_CURRENCY_NAME)
 
         if not self.default_currency:
@@ -295,7 +295,7 @@ class ExpensePage(Page):
                     Prompt.ask("")
                     break
 
-                curr_list = [curr[0] for curr in self.curr_list]
+                curr_list = [curr.code for curr in self.curr_list]
                 currency = Prompt.ask("Currency", choices=curr_list, default=self.default_currency)
                 # If the default currency has not been defined, self.default_currency = None
                 # and it will not be printed.

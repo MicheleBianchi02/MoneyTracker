@@ -36,6 +36,7 @@ class SignUpPage(Page):
                 )
 
             username = Prompt.ask("Enter a new username")
+            console.print("Type the password (it will not be displayed)")
             password = Prompt.ask("Enter a password", password=True)
             repeated_pass = Prompt.ask("Confirm password", password=True)
 
@@ -67,8 +68,8 @@ class SignUpPage(Page):
                 )
 
                 with manage_uow() as uow:
-                    available_curr = setting_service.get_currency_list(uow, None)
-                    curr_code = [curr[0] for curr in available_curr]
+                    available_curr = setting_service.get_currency_list(uow, None, is_active=True)
+                    curr_code = [curr.code for curr in available_curr]
                     default_currency = Prompt.ask(
                         "\nEnter your preferred currency", choices=curr_code, default="EUR"
                     )
@@ -76,17 +77,14 @@ class SignUpPage(Page):
                     setting_service.add(uow, id_user, DEFAULT_CURRENCY_NAME, default_currency)
                     setting_service.add(uow, id_user, "language", language)
 
-                    for curr in available_curr:
-                        if curr[0] == default_currency:
-                            setting_service.add_currency(uow, id_user, default_currency, curr[1])
-                            break
+                    setting_service.add_currency(uow, id_user, default_currency)
 
                 return Tutorial(id_user)
 
             except ServiceError:
                 # Even if the settings are not added because a probelm occoured.
                 # The default settings will be used. The user will update them later
-                # from the settin.
+                # from the settings.
 
                 return Tutorial(id_user)
 
@@ -122,8 +120,8 @@ class Tutorial(Page):
 
         console.print(
             "\nCategories are valid for a year, next they need to be redefined. "
-            "This enable you to add categories only when they are really necessary "
-            "(for example, cinema is you new passion, it not usefull to add that "
+            "This enable you to add categories only when they are really necessary\n"
+            "(for example, cinema is you new passion, it's not usefull to add that "
             "subcategory to the previous years.)"
         )
 

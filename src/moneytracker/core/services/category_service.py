@@ -249,6 +249,9 @@ class CategoryService:
         Raises
         ------
             - ServiceCategoryNotFoundError: If the category with the given id_cat is not in the db.
+            - ServiceDuplicateCategoryError: If the category's new name is already present
+                in the db for that year.
+            - InvalidCategoryError: If the category name is not valid (eg when it is "")
             - OperationNotPermittedError: If the category with id = id_cat doesn't
                 have the given id_user. Also when the new_name is an empty string (ie "")
             - ServiceError: If something went wrong with the repository or the service.
@@ -258,7 +261,8 @@ class CategoryService:
 
         try:
             with uow:
-                cat_id_user = uow.category.validate_id_cat(id_cat)
+                cat_id_user, id_prim, year, cat_type = uow.category.validate_id_cat(id_cat)
+                # if id_prim is None, it means that the category is a primary
 
             if not cat_id_user:
                 logger.error(
@@ -277,6 +281,35 @@ class CategoryService:
             if new_name == "":
                 logger.error("Empty category's primary or secondary is not valid")
                 raise InvalidCategoryError("Empty category's primary or secondary is not valid")
+
+            with uow:
+                if id_prim is None:
+                    # the category is a primary
+
+                    prim_list = uow.category.get_primary_list(id_user, year, cat_type)
+
+                    for prim in prim_list:
+                        if new_name == prim.primary and id_cat != prim.id_primary:
+                            logger.error(
+                                "An attemp was made to add an already existing category to the database",
+                            )
+                            raise ServiceDuplicateCategoryError(
+                                "An attemp was made to add an already existing category to the database",
+                            )
+
+                else:
+                    # the category is a secondary
+
+                    sec_list = uow.category.get_secondary_list_by_id(id_prim)
+
+                    for sec in sec_list:
+                        if new_name == sec.secondary and sec.id_secondary:
+                            logger.error(
+                                "An attemp was made to add an already existing category to the database",
+                            )
+                            raise ServiceDuplicateCategoryError(
+                                "An attemp was made to add an already existing category to the database",
+                            )
 
             args = (id_cat, new_name)
             complete_task(EDIT_CAT_TASK_NAME, args)
@@ -320,7 +353,7 @@ class CategoryService:
 
         try:
             with uow:
-                cat_id_user, id_parent_cat = uow.category.validate_id_cat(id_cat)
+                cat_id_user, id_parent_cat, _, _ = uow.category.validate_id_cat(id_cat)
                 # if id_parent_cat is None, it means that the category is a priamry
 
                 if cat_id_user is None:
