@@ -19,9 +19,9 @@ from moneytracker.core.exceptions import (
     TransactionUseCategoryException,
     UserNotFoundException,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.category_service import CategoryService
 from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 category_service = CategoryService()
@@ -31,7 +31,7 @@ category_service = CategoryService()
 def add_category(
     category: list[CategoryIn],
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """
     Adds a new category or a list of categories.
@@ -56,7 +56,7 @@ def get_primary_categories(
     year: int | None = None,
     cat_type: Literal["income", "expense"] | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves a list of primary categories.
@@ -72,7 +72,7 @@ def get_secondary_categories(
     year: int | None = None,
     primary: str | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves a list of secondary categories.
@@ -88,7 +88,7 @@ def get_all_categories(
     year: int | None = None,
     cat_type: Literal["income", "expense"] | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves all categories for a user.
@@ -104,7 +104,7 @@ def edit_category(
     id_cat: int,
     new_name: str,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """
     Edits the name of a category.
@@ -125,7 +125,7 @@ def edit_category(
 def delete_category(
     id_cat: int,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> str | dict[str, str]:
     """
     Deletes a category.

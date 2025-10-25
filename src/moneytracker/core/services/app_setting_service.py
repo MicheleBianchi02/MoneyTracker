@@ -2,7 +2,7 @@ import logging
 
 from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.exceptions import RepositoryError, ServiceError
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class AppSettingService:
     def get_currencies(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         is_active: bool | None = None,
     ) -> list[Currency]:
         logger.info(f"Getting default currency list with is_active:{is_active}")

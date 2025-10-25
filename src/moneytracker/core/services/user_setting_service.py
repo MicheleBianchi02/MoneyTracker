@@ -10,9 +10,9 @@ from moneytracker.core.exceptions import (
     ServiceInvalidCurrencyError,
     ServiceSettingNotFoundError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.infrastructure.job_manager import complete_task
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_SETTING_TASK_NAME,
     ADD_USER_CURRENCY_TASK_NAME,
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class UserSettingService:
     def add(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         setting_name: str,
         value: int | float | str | bool,
@@ -69,7 +69,7 @@ class UserSettingService:
 
     def get(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int | None,
         setting_name: str | None = None,
     ) -> list[Setting]:
@@ -107,7 +107,7 @@ class UserSettingService:
 
     def add_currency(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         currency_code: str,
     ) -> str:
@@ -165,7 +165,7 @@ class UserSettingService:
             raise ServiceError("An unexpected system error occurred.") from e
 
     def get_currency_list(
-        self, uow: AbstractUnitOfWork, id_user: int | None, is_active: bool | None = None
+        self, uow: UnitOfWork, id_user: int | None, is_active: bool | None = None
     ) -> list[Currency]:
         """Get user specific currency from the database.
 
@@ -213,7 +213,7 @@ class UserSettingService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_currency(self, uow: AbstractUnitOfWork, id_user: int, currency_code: str) -> None:
+    def delete_currency(self, uow: UnitOfWork, id_user: int, currency_code: str) -> None:
         """Delete user specific currency from the database.
 
         Parameters

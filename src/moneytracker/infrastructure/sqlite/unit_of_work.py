@@ -1,6 +1,5 @@
 import sqlite3
 
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.infrastructure.sqlite.repositories.app_setting_repository import (
     AppSettingRepostiory,
 )
@@ -17,7 +16,16 @@ from moneytracker.infrastructure.sqlite.repositories.user_settings_repository im
 from moneytracker.infrastructure.sqlite.repositories.users_repository import UserRepository
 
 
-class UnitOfWork(AbstractUnitOfWork):
+class UnitOfWork:
+    """Handle atomic db operation.
+
+    Guarantee that all the transactions happen correctly before saving them (commit).
+    If some exeption occour, a roolback is done. Those transaction are lost but the
+    integrity of the system is mantained.
+    If some error occoured, in order for this to work correctly any type of exeption
+    must be raised.
+    """
+
     def __init__(self, connection: sqlite3.Connection):
         self._connection = connection
 
@@ -29,12 +37,18 @@ class UnitOfWork(AbstractUnitOfWork):
         self._exchange_rate_repo = ExchangeRateRepository(self._connection)
 
     def __enter__(self):
+        """Called when entering the 'with' block."""
         # Manually begin the transaction.
         self._connection.execute("BEGIN")
 
         return self
 
     def __exit__(self, exc_type, exc_val, traceback):
+        """Called when exiting the 'with' block.
+        exc_type, exc_val, traceback will be None if no exception occurred.
+        Otherwise, they contain the exception info.
+        """
+
         if not exc_val:
             self.commit()
         else:
@@ -44,9 +58,12 @@ class UnitOfWork(AbstractUnitOfWork):
         return False
 
     def commit(self) -> None:
+        """Commit all changes."""
         self._connection.commit()
 
     def rollback(self) -> None:
+        """Rollback all the changes.
+        Used when an excepetion occoured."""
         self._connection.rollback()
 
     @property

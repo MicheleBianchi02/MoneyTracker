@@ -10,10 +10,10 @@ from moneytracker.core.exceptions import (
     ServiceUserNotFoundError,
     UsernameAlreadyPresentError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.infrastructure.job_manager import (
     complete_task,
 )
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_USER_TASK_NAME,
     DELETE_USER_TASK_NAME,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class UserService:
-    def add(self, uow: AbstractUnitOfWork, username: str, password: str) -> int:
+    def add(self, uow: UnitOfWork, username: str, password: str) -> int:
         """Add a users to the database.
 
         Parameters
@@ -83,7 +83,7 @@ class UserService:
 
     def authenticate(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         username: str,
         password: str,
     ) -> UserOut | None:
@@ -127,7 +127,7 @@ class UserService:
         except Exception:
             return None
 
-    def get(self, uow: AbstractUnitOfWork, username: str | None) -> list[UserOut]:
+    def get(self, uow: UnitOfWork, username: str | None) -> list[UserOut]:
         """Get User with the given username.
 
         Parameters
@@ -157,7 +157,7 @@ class UserService:
 
     def edit(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         new_username: str | None,
         new_password: str | None,
@@ -252,7 +252,7 @@ class UserService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(self, uow: AbstractUnitOfWork, id_user: int, current_password: str) -> None:
+    def delete(self, uow: UnitOfWork, id_user: int, current_password: str) -> None:
         """Delete a User from the database if the given password is correct.
 
         Parameters

@@ -22,9 +22,9 @@ from moneytracker.core.exceptions import (
     TransactionNotFoundException,
     UserNotFoundException,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 transaction_service = TransactionService()
@@ -50,7 +50,7 @@ class BalanceResponse(BaseModel):
 def add_transaction(
     transaction: list[TransactionIn] | TransactionIn,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> dict[str, str]:
     """Adds a new transaction."""
 
@@ -82,7 +82,7 @@ def get_transactions(
     offset: int = 0,
     name: str | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> TransactionResponse:
     """
     Retrieves transactions based on specified filters.
@@ -124,7 +124,7 @@ def get_summary(
     primary: str | None = None,
     secondary: str | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> SummaryResponse:
     """
     Retrieves a summary of transactions.
@@ -157,7 +157,7 @@ def get_balance(
     primary: str | None = None,
     secondary: str | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> BalanceResponse:
     try:
         tot_expe, tot_inc, is_valid = transaction_service.get_balance(
@@ -184,7 +184,7 @@ def edit_transaction(
     id_tr: int,
     new_tr: TransactionIn,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> dict[str, str]:
     """
     Edits an existing transaction.
@@ -209,7 +209,7 @@ def edit_transaction(
 def delete_transaction(
     id_tr: int,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> dict[str, str]:
     """
     Deletes a transaction.

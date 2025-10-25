@@ -14,7 +14,6 @@ from moneytracker.core.exceptions import (
     ServiceError,
     TimeOutApiError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.app_setting_service import AppSettingService
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.core.services.transaction_service import TransactionService
@@ -22,6 +21,7 @@ from moneytracker.core.services.user_service import UserService
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from moneytracker.infrastructure.job_manager import complete_task
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_APP_CURRENCY_TASK_NAME,
     DELETE_EXC_RATE_TASK_NAME,
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 DAY_DELTA_DEPRECATION_CHECK = 120
 
 
-def check_deprecated(uow: AbstractUnitOfWork) -> None:
+def check_deprecated(uow: UnitOfWork) -> None:
     """Check wether a currency has been deprecated.
 
     It is also usefull for currencies that, in the future may not be

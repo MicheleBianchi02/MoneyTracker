@@ -14,11 +14,11 @@ from moneytracker.core.exceptions import (
     ServiceInvalidCurrencyError,
     ServiceTransactionNotFoundError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.infrastructure.job_manager import (
     complete_task,
 )
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_EXC_RATE_TASK_NAME,
     ADD_TR_TASK_NAME,
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class TransactionService:
     def add_transaction(
         self,
-        unit_of_work: AbstractUnitOfWork,
+        unit_of_work: UnitOfWork,
         id_user: int,
         transaction_list: list[TransactionIn] | TransactionIn,
     ) -> None:
@@ -123,7 +123,7 @@ class TransactionService:
 
     def get_transaction(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         begin_date: date | None,
         end_date: date | None,
@@ -308,7 +308,7 @@ class TransactionService:
 
     def get_summary(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         begin_date: date | None,
         end_date: date | None,
@@ -475,7 +475,7 @@ class TransactionService:
 
     def get_balance(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         to_currency: str,
         begin_date: date | None,
@@ -609,7 +609,7 @@ class TransactionService:
 
     def edit_transaction(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_tr: int,
         new_tr: TransactionIn,
         id_user: int,
@@ -718,7 +718,7 @@ class TransactionService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete_transaction(self, uow: AbstractUnitOfWork, id_tr: int, id_user: int) -> None:
+    def delete_transaction(self, uow: UnitOfWork, id_tr: int, id_user: int) -> None:
         """Delete a transaction from the database.
 
         Parameters

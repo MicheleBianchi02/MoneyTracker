@@ -9,16 +9,36 @@ from moneytracker.core.exceptions import (
     InvalidParameterError,
     RepositoryError,
 )
-from moneytracker.core.repositories.abstract_exchange_rate_repository import (
-    AbstractExchangeRateRepository,
-)
 
 
-class ExchangeRateRepository(AbstractExchangeRateRepository):
+class ExchangeRateRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
     def add(self, exc_list: list[ExchangeRate] | ExchangeRate) -> None:
+        """Add exchange rates to the database.
+
+        Parameters
+        ----------
+            - exc_list (list or ExchangeRate) : List containing all the Exchange Rates
+                that need to be saved in the database.
+                The argument can also be a single ExchangeRate (not a list).
+
+        Raises
+        ------
+            - InvalidParameterError: If the exchange rate provided has the same
+                from_currency and to_currency parameter. This is not allowed, even if
+                the rate value is 1.
+            - DuplicateEntityError: If that exchange rate is already present in db.
+            - RepositoryError: If something went wrong with the database
+
+        Notes
+        -----
+            ExchangeRate are considered unique in the db if
+                (from_currency, to_currency, rate_date) are unique.
+            All those value at once need to be unique, not the single values.
+        """
+
         if not isinstance(exc_list, list):
             # Need this because if only an ExchageRate is passed (not a list), in the
             # for we would get an error since ExchageRate is not an iteratable.
@@ -75,6 +95,26 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
         from_currency: str | None = None,
         to_currency: str | None = None,
     ) -> list[ExchangeRate]:
+        """Get the exchange rate for the given date.
+
+        Parameters
+        ----------
+            - date (datetime.date) : required date
+            - from_currency (str or None) : currency from which to convert. If None, all
+                the exchange rate are returned. The default value is None.
+            - to_curency (str or None) :
+
+        Returns
+        -------
+            A list of all the exchange rate for the given date.
+            The length of the list is the same as the number of currencies saved in the
+            database.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -134,6 +174,29 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
         from_currency: str | None = None,
         to_currency: str | None = None,
     ) -> list[ExchangeRate]:
+        """Get the exchange rate for a given date range.
+
+        Parameters
+        ----------
+            - begin_date (datetime.date or None) : starting date of the range. If None
+                the lower limit is not set.
+            - end_date (datetime.date or None) : end date of the range. If None, the
+                upper limit is not set.
+            - from_currency (str or None) : currency from which to convert. If None, all
+                the exchange rate are returned. The default value is None.
+            - to_curency (str or None) :
+
+        Returns
+        -------
+            A list of all the exchange rate for the given range.
+            The length of the list is the same as the number of currencies saved in the
+            database.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+        """
+
         if begin_date is None:
             begin_date = date(1, 1, 1)
 
@@ -199,6 +262,30 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             ) from e
 
     def get_closest(self, exc_date: date) -> list[ExchangeRate]:
+        """Get the exchange rates closest to the given date.
+
+        Parameters
+        ----------
+            - date (datetime.date) : required date
+
+        Returns
+        -------
+            List of Exchange Rates with the date closest to the the given one.
+            All the returned exchange rates will have the same date but a different
+            currency. The list will be empty if the db is empty.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+
+        Notes
+        -----
+            Can be used when an exchange rate is to be added to the db but the value is
+            unknown (for istance when there is not internet connection). In this way in
+            the database are still saved reasonable values (and so the UI will display
+            fair values).
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -254,6 +341,26 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
         begin_date: date | None,
         end_date: date | None,
     ) -> list[ExchangeRate]:
+        """Get all the non updated exchange rates in the given date range.
+
+        Parameters
+        ----------
+            - begin_date (datetime.date or None) : starting date of the date range.
+                If None there is no inferior limit (all exchange rate up to end_date)
+            - end_date (datetime.date or None) : ending date of the date range.
+                If None there is no superior limit (all exchange rate from starting date).
+
+        Returns
+        -------
+            List of all the exchange rates with the is_updated parameter False. Those
+            exchange rates can have different dates and currencies.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+
+        """
+
         if begin_date is None:
             begin_date = date(1, 1, 1)
 
@@ -304,6 +411,20 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             ) from e
 
     def get_missing_rates_dates(self, date_list: list[date] | date) -> list[date]:
+        """Get dates wiht missing exchange rates.
+
+        Parameters
+        ----------
+            date_list (list or date) : date for which it is necessary to check whether
+                exchange rates are present in the database. Dates in date_list doesn't
+                need to be unique (the list can contain duplicate dates).
+
+        Returns
+        -------
+            A list containing all the dates (present in date_list) that have missing
+            exchange rates in the db.
+        """
+
         cursor = self._connection.cursor()
 
         # Since we have the possibility to handle multiple user at the same time
@@ -363,6 +484,27 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             cursor.close()
 
     def edit(self, new_exch: ExchangeRate) -> None:
+        """Edit the given exchange rate.
+
+        The only parameter that can be changed are:
+            rate;
+            is_updated
+
+        from_currency, to_currency and rate_date can't be changed.
+
+        Parameters
+        ----------
+            - new_exc (ExchangeRate) : ExchageRate with the new updated values.
+                Important: the from_currency, to_currency and rate_date values must be
+                the same of exchange_rate to be edited.
+
+        Raises
+        ------
+            - EntityNotFounError: If the given exchange rate is not in the db.
+            - RepositoryError: If something went wrong with the database
+
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -395,6 +537,19 @@ class ExchangeRateRepository(AbstractExchangeRateRepository):
             ) from e
 
     def delete(self, exc: ExchangeRate) -> None:
+        """Delete the exchange rate with the given id.
+
+        Parameters
+        ----------
+            - exc (ExchangeRate) : exchange rate to be deleted. Only the from_currency,
+                to_currency and exc_date parameters must be the correct one.
+
+        Raises
+        ------
+            - EntityNotFounError: If the given exchange rate is not in the db.
+            - RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """

@@ -9,9 +9,9 @@ from moneytracker.core.exceptions import (
     InvalidParameterError,
     RepositoryError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.infrastructure.job_manager import COMPLETED_CODE, FAILED_CODE, update_status
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.task_queue import add_task, get_task
 
 ADD_USER_TASK_NAME = "add_user"
@@ -55,7 +55,7 @@ EXC_DATE_CONFIG_NAME = "continuous_exchange_rate_start_date"
 logger = logging.getLogger(__name__)
 
 
-def writer_worker(uow: AbstractUnitOfWork | None = None) -> None:
+def writer_worker(uow: UnitOfWork | None = None) -> None:
     """Function used as a thread tarket. If the uow argument is None,
     the manage_uow is used. uow can be provided when testing or when another
     thread is not to be used."""
@@ -77,7 +77,7 @@ def writer_worker(uow: AbstractUnitOfWork | None = None) -> None:
             break
 
 
-def _complete_task(uow: AbstractUnitOfWork) -> None:
+def _complete_task(uow: UnitOfWork) -> None:
     task_name, job_id, args = get_task()
 
     logger.info(f"Processing writing task: {task_name}, job_id:{job_id}")

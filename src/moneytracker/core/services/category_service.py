@@ -11,8 +11,8 @@ from moneytracker.core.exceptions import (
     ServiceDuplicateCategoryError,
     ServiceError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.infrastructure.job_manager import complete_task
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_CAT_TASK_NAME,
     DELETE_CAT_TASK_NAME,
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class CategoryService:
     def add_category(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         cat_list: list[CategoryIn] | CategoryIn,
     ) -> None:
@@ -123,7 +123,7 @@ class CategoryService:
 
     def get_primary_list(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         year: int | None,
         cat_type: str | None,
@@ -160,7 +160,7 @@ class CategoryService:
 
     def get_secondary_list(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         year: int | None,
         primary: str | None,
@@ -201,7 +201,7 @@ class CategoryService:
 
     def get(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         id_user: int,
         year: int | None,
         cat_type: str | None,
@@ -236,7 +236,7 @@ class CategoryService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def edit(self, uow: AbstractUnitOfWork, id_cat: int, new_name: str, id_user: int) -> None:
+    def edit(self, uow: UnitOfWork, id_cat: int, new_name: str, id_user: int) -> None:
         """Edit a category.
 
         The only parameter that can be changed is the name. The new name can't be
@@ -320,9 +320,7 @@ class CategoryService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def delete(
-        self, uow: AbstractUnitOfWork, id_cat: int, id_user: int
-    ) -> list[TransactionOut] | None:
+    def delete(self, uow: UnitOfWork, id_cat: int, id_user: int) -> list[TransactionOut] | None:
         """Delete the given category.
 
         Parameters

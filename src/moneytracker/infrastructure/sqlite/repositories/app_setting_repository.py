@@ -3,16 +3,28 @@ from datetime import date
 
 from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
-from moneytracker.core.repositories.abstract_app_config_repository import (
-    AbstractAppSettingRepository,
-)
 
 
-class AppSettingRepostiory(AbstractAppSettingRepository):
+class AppSettingRepostiory:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
     def add(self, name: str, value: str) -> None:
+        """Add app specific setting paramter to the database.
+
+        Parameters
+        ----------
+            - name (str) : name of the setting paramter
+            - value (str) : value of that parameter. It must be a string, so the
+                conversion must happen before calling this method.
+
+        Raises
+        ------
+            - DuplicateEntityError: If Unique constraint error occour (e.g. two identical
+                name are inserted)
+            - RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -41,6 +53,23 @@ class AppSettingRepostiory(AbstractAppSettingRepository):
             ) from e
 
     def get(self, name: str) -> str | None:
+        """Get app specific setting parameter with the given name.
+
+        Parameters
+        ----------
+            - name (str) : name of the required setting paramter
+
+        Returns
+        -------
+            The value of the required paramter. The type is str.
+            None is returned if the config paramater with that name doesn't exist in the
+            database.
+
+        Raises
+        ------
+            - RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -71,6 +100,20 @@ class AppSettingRepostiory(AbstractAppSettingRepository):
             ) from e
 
     def edit(self, name: str, new_value: str) -> None:
+        """Edit the app specific setting paramter with the given name
+
+        Parameters
+        ----------
+            - name (str) : name of the setting paramter
+            - new_value (str) : updated value of that parameter. It must be a string, so
+                the conversion must happen before calling this method.
+
+        Raises
+        ------
+            - EntityNotFounError: If the given app setting's name is not in the db.
+            - RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -97,6 +140,18 @@ class AppSettingRepostiory(AbstractAppSettingRepository):
             ) from e
 
     def delete(self, name: str) -> None:
+        """Delete the app specific setting paramter with the given name
+
+        Parameters
+        ----------
+            - name (str) : name of the config paramter
+
+        Raises
+        ------
+            - EntityNotFounError: If the given app config's name is not in the db.
+            - RepositoryError: If something went wrong with the database
+        """
+
         cursor = self._connection.cursor()
 
         sql = """
@@ -142,6 +197,19 @@ class AppSettingRepostiory(AbstractAppSettingRepository):
             raise EntityNotFoundError("app_setting", f"name:{name}")
 
     def add_upd_currency_list(self, currency_list: list[Currency]) -> None:
+        """Add or update app specific currencies.
+
+        If the currency is already present, it is updated. Used when a currency
+        is deprecated or no more available.
+
+        Parameters
+        -----------
+            currency_list (list) : list containing Currency's istances.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+        """
         cursor = self._connection.cursor()
 
         sql = """
@@ -186,6 +254,22 @@ class AppSettingRepostiory(AbstractAppSettingRepository):
             raise RepositoryError("Error while adding or updating currencies: ") from e
 
     def get_currency_list(self, is_active: bool | None = None) -> list[Currency]:
+        """Get a list of all currencies saved in the db.
+
+        Parameters
+        ----------
+            is_active (bool or None) : whether the currency is active or not (no
+                more available). If None (default), all currencies are returned,
+                indipendently on the status.
+
+        Returns
+        -------
+            A list of Currency instances.
+
+        Raises
+        ------
+            RepositoryError: If something went wrong with the database
+        """
         cursor = self._connection.cursor()
 
         sql = """

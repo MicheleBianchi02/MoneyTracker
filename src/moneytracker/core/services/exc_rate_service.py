@@ -11,11 +11,11 @@ from moneytracker.core.exceptions import (
     ServiceError,
     TimeOutApiError,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.app_setting_service import AppSettingService
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from moneytracker.infrastructure.job_manager import complete_task
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
     ADD_APP_SETTING_TASK_NAME,
     ADD_EXC_RATE_TASK_NAME,
@@ -65,7 +65,7 @@ class ExchangeRateService:
         else:
             return False
 
-    def add_exchange_rate(self, uow: AbstractUnitOfWork) -> date:
+    def add_exchange_rate(self, uow: UnitOfWork) -> date:
         """Add exchange rates to the database at startup.
 
         If no rate is present in the database, a starting date is chosen, corresponding to
@@ -204,7 +204,7 @@ class ExchangeRateService:
             logger.exception(str(e))
             raise ServiceError("An unexpected system error occurred.") from e
 
-    def update_exchange_rate(self, uow: AbstractUnitOfWork) -> None:
+    def update_exchange_rate(self, uow: UnitOfWork) -> None:
         """Updated exchange rates present in the database."""
 
         logger.info("Updating old exchange rates")
@@ -256,7 +256,7 @@ class ExchangeRateService:
 
     def get_missing_rates(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         date_list: list[date],
     ) -> list[ExchangeRate]:
         """Get missing exchange rates based on the given date_list"""
@@ -376,7 +376,7 @@ class ExchangeRateService:
 
     def get_rate(
         self,
-        uow: AbstractUnitOfWork,
+        uow: UnitOfWork,
         begin_date: date | None,
         end_date: date | None,
         from_currency: str | None = None,

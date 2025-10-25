@@ -15,9 +15,9 @@ from moneytracker.core.exceptions import (
     ServiceSettingNotFoundError,
     SettingNotFoundException,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.user_setting_service import UserSettingService
 from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 setting_service = UserSettingService()
@@ -28,7 +28,7 @@ def add_or_update_setting(
     setting_name: str = Body(...),
     value: int | float | str | bool = Body(...),
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Adds or updates a user-specific setting.
@@ -47,7 +47,7 @@ def add_or_update_setting(
 @router.get("/default/", response_model=list[Setting])
 def get_default_settings(
     setting_name: str | None = None,
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves default settings.
@@ -63,7 +63,7 @@ def get_default_settings(
 def get_settings(
     setting_name: str | None = None,
     id_user=Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves user specific settings.
@@ -79,7 +79,7 @@ def get_settings(
 def add_currency(
     currency_code: str = Body(...),
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Adds a currency for a user.
@@ -99,7 +99,7 @@ def add_currency(
 @router.get("/currencies/available/", response_model=list[Currency])
 def get_available_currencies(
     is_active: bool | None = None,
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves all available currencies.
@@ -116,7 +116,7 @@ def get_available_currencies(
 def get_currencies(
     is_active: bool | None = None,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Retrieves all currencies for a user.
@@ -133,7 +133,7 @@ def get_currencies(
 def delete_currency(
     currency_code: str,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Deletes a user currency.

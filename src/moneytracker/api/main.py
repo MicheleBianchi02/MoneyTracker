@@ -18,7 +18,6 @@ from moneytracker.core.exceptions import (
     ServiceError,
     UnauthorizedException,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.app_config import (
     HOST_KEY,
     LOG_LEVEL_KEY,
@@ -33,6 +32,7 @@ from moneytracker.core.services.startup import (
 )
 from moneytracker.core.services.user_service import UserService
 from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.tui.main import run_tui
 from moneytracker.tui.pages.setting import ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE
 
@@ -109,7 +109,7 @@ app.include_router(settings.router)
 @app.post("/token")
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> Token:
     try:
         user_service = UserService()

@@ -13,9 +13,9 @@ from moneytracker.core.exceptions import (
     UsernameAlreadyPresentError,
     UserNotFoundException,
 )
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.core.services.user_service import UserService
 from moneytracker.infrastructure.dependencies import get_uow
+from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 router = APIRouter(prefix="/users", tags=["Users"])
 user_service = UserService()
@@ -24,7 +24,7 @@ user_service = UserService()
 @router.post("/", status_code=201, response_model=dict[str, str | int])
 def add_user(
     user: UserIn,
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Adds a new user.
@@ -47,7 +47,7 @@ def add_user(
 
 
 @router.get("/", response_model=list[UserOut])
-def get_users(username: str | None = None, uow: AbstractUnitOfWork = Depends(get_uow)):
+def get_users(username: str | None = None, uow: UnitOfWork = Depends(get_uow)):
     """
     Retrieves a list of users.
     """
@@ -61,7 +61,7 @@ def get_users(username: str | None = None, uow: AbstractUnitOfWork = Depends(get
 def edit_user(
     user: UserEdit,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Edits an existing user.
@@ -91,7 +91,7 @@ def edit_user(
 def delete_user(
     user: UserDeleteConfirmation,
     id_user: int = Depends(get_id_user),
-    uow: AbstractUnitOfWork = Depends(get_uow),
+    uow: UnitOfWork = Depends(get_uow),
 ):
     """
     Deletes a user.

@@ -1,11 +1,10 @@
 from contextlib import contextmanager
 
-from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
 from moneytracker.infrastructure.connection_pool import connection_pool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 
-def get_uow() -> AbstractUnitOfWork:
+def get_uow() -> UnitOfWork:
     """Provides a Unit of Work instance with a connection from the pool.
     This function is suppose to be used only with fastAPI inside Depends(get_uow())
     since it run automatically the teardown code (release the connection back
@@ -19,7 +18,7 @@ def get_uow() -> AbstractUnitOfWork:
 
 
 @contextmanager
-def manage_uow() -> AbstractUnitOfWork:
+def manage_uow() -> UnitOfWork:
     """Provide a Unit of Work instance with a connection from the pool.
     The connection is released when the __exit__ method is called (ie
     when exiting the with statement.
