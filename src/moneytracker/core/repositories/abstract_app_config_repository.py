@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from moneytracker.core.domain.exchange_rate import Currency
 
 
-class AbstractAppConfigRepository(ABC):
+class AbstractAppSettingRepository(ABC):
     @abstractmethod
     def add(self, name: str, value: str) -> None:
         """Add app specific configuration paramter to the database.

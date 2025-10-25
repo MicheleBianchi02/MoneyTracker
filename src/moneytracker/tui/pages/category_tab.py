@@ -15,6 +15,9 @@ from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.tui.utils import (
     CATEGORY_TAB,
     DASHBOARD_TAB,
+    EXPENSE_TAB,
+    INCOME_TAB,
+    SETTING_TAB,
     Page,
     clear_screen,
     draw_navigation_tab,
@@ -62,7 +65,7 @@ class CategoryPage(Page):
                     "\nTabs: [bold green]d[/]ashboard, [bold green]e[/]xpense, "
                     "[bold green]i[/]ncome,  [bold green]s[/]ettings"
                 )
-                choice = Prompt.ask("Which Tab", choices=["d", "e", "i", "s"], default="e")
+                choice = Prompt.ask("Which Tab", choices=["d", "e", "i", "s"], default="d")
 
                 if choice == "d":
                     return DASHBOARD_TAB
@@ -234,6 +237,7 @@ class CategoryPage(Page):
         filters["show_id"] = True
 
         clear_screen()
+        draw_navigation_tab(active_tab, console)
 
         console.print("\n[yellow]Edit Category[/]")
         cat_list: list[CategoryOut] = self._draw_table(filters, console)
@@ -363,7 +367,7 @@ class CategoryPage(Page):
                         )
                     else:
                         console.print(
-                            f"[red]There are {f} transactions pertaining to this category\n"
+                            f"[red]There are {n_tr} transactions pertaining to this category\n"
                             "Please edit/delete them before deleting this category.[/]"
                         )
 

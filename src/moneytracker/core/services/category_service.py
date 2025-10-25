@@ -73,6 +73,8 @@ class CategoryService:
 
         logger.info(f"Adding {len(cat_list)} categories into the database.")
 
+        # TODO: Check that the secondary is not equal to the none_replacement used
+        # inside the summary function
         try:
             with uow:
                 for cat in cat_list:

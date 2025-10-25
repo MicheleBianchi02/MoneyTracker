@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from queue import Empty, Full, Queue
 
-from moneytracker.core.services.startup_config import app_config
+from moneytracker.core.services.app_config import app_config
 
 logger = logging.getLogger(__name__)
 
@@ -105,5 +105,5 @@ class ConnectionPool:
 
 
 logger.info("Creating database connections")
-db_path = app_config.get_data_file()
+db_path = app_config.get_data_file_path()
 connection_pool = ConnectionPool(db_path)

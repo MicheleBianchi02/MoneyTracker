@@ -7,7 +7,7 @@ from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfW
 logger = logging.getLogger(__name__)
 
 
-class AppConfigService:
+class AppSettingService:
     def get_currencies(
         self,
         uow: AbstractUnitOfWork,
@@ -17,7 +17,7 @@ class AppConfigService:
 
         try:
             with uow:
-                return uow.app_config.get_currency_list(is_active)
+                return uow.app_setting.get_currency_list(is_active)
 
         except RepositoryError as e:
             logger.exception(str(e))

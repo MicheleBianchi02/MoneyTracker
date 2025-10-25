@@ -52,7 +52,6 @@ currency is deprecated, other methods need to be used to handle them (see below)
 It follow a schema of how the exchange rates are handled:
 
 1. The first time the app is run (after installation) there can be two cases:
-
    - **Connection is present**. A request to the rates provider is done using only the
      active currencies present in the list defined above. The date range is from the
      first available date (2001-01-01) until the startup date. With the returned values
@@ -60,30 +59,29 @@ It follow a schema of how the exchange rates are handled:
      withdrawn currencies, a deprecation date is estimated. Using these information
      and also the one present in the list defined above, all currencies are saved in
      the currencies table of the database (the deprecation date and wheter it is active
-     or not is also saved in the same table). The startup date is saved in the app_config
+     or not is also saved in the same table). The startup date is saved in the app_setting
      table under the key `deprecation_check_date` (variable called
      `DEPRECATION_CHECK_DATE_CONFIG_NAME`). Then, with the same returned data, the
      exchange rate present in the database from an arbitrary date (at the moment it is
      the first day of the startup year) until the startup date are saved in the database
      (only for the active currencies in that period). For currencies deprecated within
      that period, exchange rate from the starting date until the deprecation date will
-     be saved. At the end, that starting date is saved inside the app_config table of
+     be saved. At the end, that starting date is saved inside the app_setting table of
      the database under the key: `continuous_exchange_rate_start_date` (variable
      called `EXC_DATE_CONFIG_NAME`).
 
    - **Offline**. In this case the API request will fail. Since no information is
      known on the currency state, the list defined above is used. Even if there would
      be any withdrawn currency, the currency list is saved in the currencies table of the
-     database. The difference is that the startup date is not saved inside the app_config
+     database. The difference is that the startup date is not saved inside the app_setting
      table of the database under the key `deprecation_check_date` (see later for the reason).
      Then, a starting date is still defined (as above) and the exchange rate for all
      active currencies are saved in the db with a value of 1 (or an estimation of that
      value if present in the list defined before). All those rates will have the
      `is_updated` parameter set to False. As before, the starting date is saved in
-     app_config table under the key `continuous_exchange_rate_start_date`.
+     app_setting table under the key `continuous_exchange_rate_start_date`.
 
 2. For all other startup different functions are called.
-
    - First the value of `deprecation_check_date` is taken from the database. If
      nothing is found or the date is too old (30 or more days in the past) the
      deprecation check is done again. If the connection is not present, nothing is done.
@@ -154,22 +152,18 @@ It follow a schema of how the exchange rates are handled:
 This section outlines the rules that any client (e.g., a GUI, a web frontend) **must** follow to interact with the backend correctly.
 
 1.  **Category Must Exist Before a Transaction Is Added**:
-
     - You cannot add a transaction for a category that does not already exist for that specific `user`, `year`, and `type`.
     - **Frontend Responsibility**: Before allowing a user to save a transaction, the frontend must ensure the selected category exists. If it doesn't, it must first call `uow.category.add()` to create it.
 
 2.  **User Deletion is Permanent and Cascading**:
-
     - When a user is deleted via `uow.user.delete()`, the `ON DELETE CASCADE` rule in the database will **automatically and irreversibly delete all data associated with that user**. This includes all their transactions, categories, and settings.
     - **Frontend Responsibility**: The UI must provide a very clear and strong warning to the user before allowing them to delete their account.
 
 3.  **Exchange Rates Are Required for Summaries**:
-
     - The `get_summary()` feature relies entirely on the exchange rates present in the `exchange_rates` table for the relevant dates.
     - **External Responsibility**: The application needs a separate process or service to fetch daily exchange rates from an external API and store them in the database using `uow.exchange_rate.add()`. The backend does not do this automatically.
 
 4.  **Critical Category Fields are Immutable**:
-
     - A category's `id_user`, `category_year`, and `category_type` cannot be edited after creation.
     - To "move" a category to a new year, the frontend must treat it as creating a new category and potentially moving associated transactions.
 

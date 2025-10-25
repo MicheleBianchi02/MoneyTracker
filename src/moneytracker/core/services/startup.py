@@ -1,16 +1,13 @@
-import json
 import logging
 import logging.config
-import os
-import socket
 import threading
 
 from moneytracker.core.exceptions import (
     ServiceError,
 )
+from moneytracker.core.services.app_config import LOG_LEVEL_KEY, app_config
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.core.services.healt_check_service import check_deprecated
-from moneytracker.core.services.startup_config import app_config
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.infrastructure.sqlite.initializer import initialize_database
 from moneytracker.infrastructure.worker import (
@@ -19,12 +16,6 @@ from moneytracker.infrastructure.worker import (
 
 # If the server is kept running, the exchange rates need to be updated after a given time.
 EXC_ADD_INTERVAL_SECONDS = 10 * 60 * 60  # 10 hours
-
-
-HOST_KEY = "host"
-PORT_KEY = "port"
-LOG_LEVEL_KEY = "log_level"  # log level for uvicorn, not the server
-TUI_MODE_KEY = "tui_mode"
 
 
 logger = logging.getLogger(__name__)
@@ -39,106 +30,9 @@ def bootstrap_app() -> dict[str, str]:
     is used.
     """
 
-    log_file = app_config.get_log_file()
+    settings = app_config.get_config_settings()
 
-    LOGGING_CONFIG = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "standard": {
-                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            },
-            "detailed": {
-                "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s",
-                "datefmt": "%Y-%m-%dT%H:%M:%S%z",  # z is the the offset to the UTC time in hours
-            },
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "formatter": "standard",
-                # "level": "INFO",
-                # "level": "WARNING",
-                "level": "CRITICAL",
-            },
-            "file": {
-                "class": "logging.handlers.RotatingFileHandler",
-                "filename": f"{log_file}",
-                "maxBytes": 1024 * 1024 * 5,  # 5 MB
-                "backupCount": 5,
-                "formatter": "detailed",
-                "level": "INFO",
-            },
-        },
-        "loggers": {
-            "": {  # root logger
-                "handlers": ["console", "file"],
-                "level": "INFO",
-            },
-        },
-    }
-
-    logging.config.dictConfig(LOGGING_CONFIG)
-
-    config_file = app_config.get_config_file()
-
-    default_setting = {
-        HOST_KEY: None,
-        PORT_KEY: None,
-        LOG_LEVEL_KEY: None,
-        TUI_MODE_KEY: None,
-    }
-
-    if not os.path.exists(config_file):
-        with open(config_file, "w") as f:
-            json.dump(default_setting, f)
-
-    try:
-        with open(config_file, mode="r") as file:
-            settings: dict = json.load(file)
-
-        if (
-            HOST_KEY not in settings
-            or PORT_KEY not in settings
-            or LOG_LEVEL_KEY in settings
-            or TUI_MODE_KEY in settings
-        ):
-            # reading was successfull (no problem with the json) but a parameter is
-            # missing
-            with open(config_file, mode="w") as file:
-                # with "w" the file content is already deleted
-
-                settings[HOST_KEY] = settings.get(HOST_KEY, None)
-                settings[PORT_KEY] = settings.get(PORT_KEY, None)
-                settings[LOG_LEVEL_KEY] = settings.get(LOG_LEVEL_KEY, None)
-                settings[TUI_MODE_KEY] = settings.get(TUI_MODE_KEY, None)
-
-                json.dump(settings, file)
-
-    except Exception as e:
-        # enter if there is a problem with the json (eg missing })
-        logger.exception(str(e))
-        with open(config_file, mode="w") as file:
-            json.dump(default_setting, file)
-            settings = default_setting
-
-    host = settings.get(HOST_KEY, None)
-    port = settings.get(PORT_KEY, None)
-    log_level = settings.get(LOG_LEVEL_KEY, None)
-    tui_mode = settings.get(TUI_MODE_KEY, None)
-
-    if host is None:
-        host = "127.0.0.1"  # localhost
-        settings[HOST_KEY] = host
-
-    if port is None:
-        # get an unused port
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((host, 0))
-            settings[PORT_KEY] = str(s.getsockname()[1])
-
-    if log_level is None:
-        settings[LOG_LEVEL_KEY] = "info"
+    app_config.init_loggin(settings[LOG_LEVEL_KEY])
 
     return settings
 
@@ -168,7 +62,7 @@ def startup() -> None:
 
         worker_thread = threading.Thread(
             target=writer_worker,
-            daemon=False,  # closed at sthutdown
+            daemon=False,  # closed at shutdown
         )
 
         logger.info("Starting worker thread")

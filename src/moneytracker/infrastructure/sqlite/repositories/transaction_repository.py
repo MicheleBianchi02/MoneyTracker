@@ -16,6 +16,8 @@ from moneytracker.infrastructure.sqlite.repositories.categories_repository impor
 
 # Used ein the get_summary function to substitute the None keys. Because None
 # can't be parsed as a valid json key
+# BUG: If a secondary is called as the none_replacement we can have some problems.
+# Prohibit the user to add a similar category
 NONE_REPLACEMENT = "N/A"
 
 
@@ -299,7 +301,9 @@ class TransactionRepository(AbstractTransactionRepository):
             # TODO: For better performance we can spawn two threads that can take
             # transactions and exchange rates indipendently. Maybe there are problem
             # with the connection (can't share connection with multiple thread)?
-            # Maybe rewrite something in C? Or change the logic.
+            # Maybe rewrite something in C? Or change the logic. For python version
+            # lower than 3.14, thread are not really parallel, so the speed increase
+            # might be negligible
             cursor = self._connection.cursor()
 
             # Fetch all relevant raw transactions (same as before)
@@ -732,8 +736,39 @@ def _get_raw_exc_rate(cursor: sqlite3.Cursor, begin_date: str, end_date: str) ->
         WHERE
             rate_date BETWEEN ? AND ?
     """
+
+    sql_closest = """
+        SELECT
+            rate_date,
+            from_currency,
+            to_currency,
+            rate,
+            is_updated
+        FROM
+            exchange_rates
+        WHERE
+            rate_date = (
+                SELECT
+                    rate_date
+                FROM
+                    exchange_rates
+                ORDER BY
+                    ABS(JULIANDAY(rate_date) - JULIANDAY(?))
+                LIMIT 1
+            )        
+    """
     cursor.execute(sql_rates, [begin_date, end_date])
     rates_raw = cursor.fetchall()
+
+    # If begin_date (and so also end_date) are in the future, we will obtain an
+    # empty list. So, in these cases, we find the latest known exchange rate and
+    # we use it
+    if not rates_raw:
+        cursor.execute(sql_closest, [begin_date])
+        rates_raw = cursor.fetchall()
+        # rates_raw is a list containing exchange rates all pertaining to the last
+        # know day
+        begin_date = rates_raw[0][0]
 
     # Create a rate "lookup" map, now storing the original rate date
     rates_map = collections.defaultdict(dict)
@@ -792,6 +827,7 @@ def _get_converted_value(
         converted_value = tr_value
     else:
         rates_for_day = filled_rates.get(tr_date_str)
+
         if not rates_for_day:
             raise EntityNotFoundError(
                 "exchange rate",

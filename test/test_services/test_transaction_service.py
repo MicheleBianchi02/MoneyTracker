@@ -94,7 +94,7 @@ def test_add_transaction(connection_pool, isolated_worker):
         UtilTest.init_database(uow)
         id_user = uow.user.add(UtilTest.generate_random_string(), UtilTest.generate_random_string())
 
-        uow.app_config.add(EXC_DATE_CONFIG_NAME, starting_date)
+        uow.app_setting.add(EXC_DATE_CONFIG_NAME, starting_date)
 
         exc_provider = ExchangeRateProvider()
 
@@ -104,7 +104,7 @@ def test_add_transaction(connection_pool, isolated_worker):
         active_currencies_code = [curr.code for curr in active_currencies]
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(active_currencies)
+        uow.app_setting.add_upd_currency_list(active_currencies)
 
         exc_list = []
 
@@ -217,7 +217,7 @@ def test_edit_transaction(connection_pool, isolated_worker):
     with uow:
         UtilTest.init_database(uow)
         id_user = uow.user.add(UtilTest.generate_random_string(), UtilTest.generate_random_string())
-        uow.app_config.add(EXC_DATE_CONFIG_NAME, starting_date)
+        uow.app_setting.add(EXC_DATE_CONFIG_NAME, starting_date)
 
         cat_list = []
         cat_list.append(

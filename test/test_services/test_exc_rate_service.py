@@ -64,13 +64,13 @@ def test_startup_add_from_empty(connection_pool, isolated_worker):
         UtilTest.init_database(uow)
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(active_currencies)
+        uow.app_setting.add_upd_currency_list(active_currencies)
 
     exc_service.add_exchange_rate(uow)
 
     with uow:
         max_date = ExchangeRateProvider().maximum_available_date
-        st_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+        st_date = uow.app_setting.get(EXC_DATE_CONFIG_NAME)
 
         assert st_date is not None
         st_date = date.fromisoformat(st_date)
@@ -115,7 +115,7 @@ def test_startup_add_from_filled(connection_pool, isolated_worker):
         max_date = date(2025, 8, 1)
 
         st_date = f"{max_date.year}-01-01"
-        uow.app_config.add(EXC_DATE_CONFIG_NAME, st_date)
+        uow.app_setting.add(EXC_DATE_CONFIG_NAME, st_date)
         st_date = date.fromisoformat(st_date)
 
         date_list = []
@@ -127,7 +127,7 @@ def test_startup_add_from_filled(connection_pool, isolated_worker):
         UtilTest.add_exchange_rate(uow, None, date_list)
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(active_currencies)
+        uow.app_setting.add_upd_currency_list(active_currencies)
 
     exc_service.add_exchange_rate(uow)
 
@@ -165,7 +165,7 @@ def test_update(connection_pool, isolated_worker):
         UtilTest.init_database(uow)
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(active_currencies)
+        uow.app_setting.add_upd_currency_list(active_currencies)
 
     exc_service.add_exchange_rate(uow)
 

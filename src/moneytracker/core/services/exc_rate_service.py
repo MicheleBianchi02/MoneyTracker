@@ -12,12 +12,12 @@ from moneytracker.core.exceptions import (
     TimeOutApiError,
 )
 from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from moneytracker.core.services.app_config_service import AppConfigService
+from moneytracker.core.services.app_setting_service import AppSettingService
 from moneytracker.infrastructure.dependencies import manage_uow
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
 from moneytracker.infrastructure.job_manager import complete_task
 from moneytracker.infrastructure.worker import (
-    ADD_APP_CONFIG_TASK_NAME,
+    ADD_APP_SETTING_TASK_NAME,
     ADD_EXC_RATE_TASK_NAME,
     EDIT_EXC_RATE_TASK_NAME,
     EXC_DATE_CONFIG_NAME,
@@ -30,10 +30,10 @@ class ExchangeRateService:
     def __init__(self) -> None:
         exc_provider = ExchangeRateProvider()
 
-        app_config_service = AppConfigService()
+        app_setting_service = AppSettingService()
 
         with manage_uow() as uow:
-            self._currencies = app_config_service.get_currencies(uow, is_active=None)
+            self._currencies = app_setting_service.get_currencies(uow, is_active=None)
 
         self._active_currencies = []
         self._not_active_currencies = []
@@ -71,14 +71,16 @@ class ExchangeRateService:
         If no rate is present in the database, a starting date is chosen, corresponding to
         firt date of the year (if the current date is to close to the yyyy-01-01 the previous
         year is chosen) and the rates are added starting from that date until the current
-        date. This starting date is saved, in iso format, in the app_config table of the db.
+        date. This starting date is saved, in iso format, in the app_setting table of the db.
         At next startup, the rates are added stating from the latest date present in the db
         until the current date. If, at first startup, something went wrong with the rates
         provider (e.g. no internet connection), rates are not added to the db. It is only
-        saved the starting date in the app_config table of the db. In that case the rates
+        saved the starting date in the app_setting table of the db. In that case the rates
         will be added the next startup.
 
-        The starting date (datetime.date) is returned.
+        Returns:
+            The starting date (datetime.date) is returned.
+
         """
 
         logger.info("Adding new exchange rates to the database")
@@ -88,8 +90,8 @@ class ExchangeRateService:
 
         max_date = self.maximum_available_date
 
-        app_config_service = AppConfigService()
-        currencies = app_config_service.get_currencies(uow, is_active=True)
+        app_setting_service = AppSettingService()
+        currencies = app_setting_service.get_currencies(uow, is_active=True)
 
         currencies = [curr.code for curr in currencies]
         currencies.remove(from_currency)
@@ -109,7 +111,7 @@ class ExchangeRateService:
                         return start_date
 
                 else:
-                    start_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+                    start_date = uow.app_setting.get(EXC_DATE_CONFIG_NAME)
 
                     if start_date is None:
                         year = date.today().year
@@ -127,7 +129,7 @@ class ExchangeRateService:
                             f"Adding {first_date_str} to the config table"
                         )
                         args = (EXC_DATE_CONFIG_NAME, first_date_str)
-                        complete_task(ADD_APP_CONFIG_TASK_NAME, args)
+                        complete_task(ADD_APP_SETTING_TASK_NAME, args)
 
                     else:
                         start_date = date.fromisoformat(start_date)
@@ -271,7 +273,7 @@ class ExchangeRateService:
         # present in the datebase, we add them now. This should never happen. It is
         # added here only for safety reason. If the rates are not present and the
         # user ask for the transaction in a different currency, there will be a problem.
-        exc_starting_date = uow.app_config.get(EXC_DATE_CONFIG_NAME)
+        exc_starting_date = uow.app_setting.get(EXC_DATE_CONFIG_NAME)
         if exc_starting_date is None:
             exc_starting_date = self.add_exchange_rate(uow)
 

@@ -1,8 +1,8 @@
 import sqlite3
 
 from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from moneytracker.infrastructure.sqlite.repositories.app_config_repository import (
-    AppConfigRepostiory,
+from moneytracker.infrastructure.sqlite.repositories.app_setting_repository import (
+    AppSettingRepostiory,
 )
 from moneytracker.infrastructure.sqlite.repositories.categories_repository import CategoryRepository
 from moneytracker.infrastructure.sqlite.repositories.exchange_rate_repository import (
@@ -25,7 +25,7 @@ class UnitOfWork(AbstractUnitOfWork):
         self._cat_repo = CategoryRepository(self._connection)
         self._transaction_repo = TransactionRepository(self._connection, self._cat_repo)
         self._user_setting_repo = UserSettingRepository(self._connection)
-        self._app_config = AppConfigRepostiory(self._connection)
+        self._app_setting_repo = AppSettingRepostiory(self._connection)
         self._exchange_rate_repo = ExchangeRateRepository(self._connection)
 
     def __enter__(self):
@@ -66,8 +66,8 @@ class UnitOfWork(AbstractUnitOfWork):
         return self._user_setting_repo
 
     @property
-    def app_config(self) -> AppConfigRepostiory:
-        return self._app_config
+    def app_setting(self) -> AppSettingRepostiory:
+        return self._app_setting_repo
 
     @property
     def exchange_rate(self) -> ExchangeRateRepository:

@@ -137,6 +137,8 @@ class UserSettingService:
             are equal, indipendently on the symbol.
         """
 
+        currency_code = currency_code.upper()
+
         logger.info(f"Adding currency {currency_code} to the user with id_user:{id_user}")
 
         try:
@@ -151,7 +153,6 @@ class UserSettingService:
                     f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
                 )
 
-            currency_code = currency_code.upper()
             if not ExchangeRateService().validate_currency(currency_code):
                 logger.error(f"{currency_code} is not a valid currency")
                 raise ServiceInvalidCurrencyError()

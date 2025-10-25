@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 
 from moneytracker.core.repositories.abstract_app_config_repository import (
-    AbstractAppConfigRepository,
+    AbstractAppSettingRepository,
 )
 from moneytracker.core.repositories.abstract_category_repository import AbstractCategoryRepository
 from moneytracker.core.repositories.abstract_exchange_rate_repository import (
@@ -78,7 +78,7 @@ class AbstractUnitOfWork(ABC):
         raise NotImplementedError
 
     @abstractproperty
-    def app_config(self) -> AbstractAppConfigRepository:
+    def app_setting(self) -> AbstractAppSettingRepository:
         raise NotImplementedError
 
     @abstractproperty

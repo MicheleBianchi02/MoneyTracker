@@ -1,11 +1,11 @@
 import sqlite3
 
 import pytest
-from test.util_test import UtilTest
 
 from moneytracker.core.exceptions import DuplicateEntityError
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -26,31 +26,31 @@ def connection() -> sqlite3.Connection:
         return connection
 
 
-def test_add_get_app_config(connection):
+def test_add_get_app_setting(connection):
     with UnitOfWork(connection) as uow:
         UtilTest.init_database(uow)
 
         name = "version"
         value = "0-1-1"
-        uow.app_config.add(name, value)
+        uow.app_setting.add(name, value)
 
-        value_get = uow.app_config.get(name)
+        value_get = uow.app_setting.get(name)
         assert value == value_get
 
         name = "date"
         value = "2025-01-01"
-        uow.app_config.add(name, value)
+        uow.app_setting.add(name, value)
 
-        value_get = uow.app_config.get(name)
+        value_get = uow.app_setting.get(name)
         assert value == value_get
 
         # name column must be unique
         try:
             name = "date"
             value = "2025-01-01"
-            uow.app_config.add(name, value)
+            uow.app_setting.add(name, value)
 
-            value_get = uow.app_config.get(name)
+            value_get = uow.app_setting.get(name)
 
         except DuplicateEntityError:
             pass
@@ -64,13 +64,13 @@ def test_edit(connection):
 
         name = "version"
         value = "0-1-1"
-        uow.app_config.add(name, value)
+        uow.app_setting.add(name, value)
 
         new_value = "1-0-0"
 
-        uow.app_config.edit(name, new_value)
+        uow.app_setting.edit(name, new_value)
 
-        new_value_get = uow.app_config.get(name)
+        new_value_get = uow.app_setting.get(name)
 
         assert new_value == new_value_get
 
@@ -81,10 +81,10 @@ def test_delete(connection):
 
         name = "version"
         value = "0-1-1"
-        uow.app_config.add(name, value)
+        uow.app_setting.add(name, value)
 
-        uow.app_config.delete(name)
+        uow.app_setting.delete(name)
 
-        value_get = uow.app_config.get(name)
+        value_get = uow.app_setting.get(name)
 
         assert value_get is None

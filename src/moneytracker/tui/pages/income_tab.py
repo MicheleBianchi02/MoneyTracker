@@ -175,7 +175,7 @@ class IncomePage(Page):
                 total_row[idx + 1] += val
 
             row[1:] = [format_value(par, self.value_format) for par in row[1:]]
-            table.add_row(*row, style="on blue")
+            table.add_row(*row, style="on yellow")
 
         table.add_row("")
 

@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-import logging.config
 import sys
 from contextlib import asynccontextmanager
 
@@ -20,17 +19,22 @@ from moneytracker.core.exceptions import (
     UnauthorizedException,
 )
 from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from moneytracker.core.services.shutdown_service import shutdown
-from moneytracker.core.services.startup import (
+from moneytracker.core.services.app_config import (
     HOST_KEY,
     LOG_LEVEL_KEY,
     PORT_KEY,
+    TUI_MODE_KEY,
+    app_config,
+)
+from moneytracker.core.services.shutdown_service import shutdown
+from moneytracker.core.services.startup import (
     bootstrap_app,
     startup,
 )
 from moneytracker.core.services.user_service import UserService
 from moneytracker.infrastructure.dependencies import get_uow
-from moneytracker.tui.main import ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE, run_tui
+from moneytracker.tui.main import run_tui
+from moneytracker.tui.pages.setting import ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE
 
 # WARNING: this backend works only on one processor, so it is not allowed to use
 # --worker >1 inside uvicorn settings. This beacuse we are using threading.Lock and not
@@ -137,19 +141,35 @@ if __name__ == "__main__":
         print("Do you want to open an alternate screen (without scrolling)")
         print("or use this terminal window (all history will be deleted)?")
 
-        # TODO: Save those settings in the database
-        while True:
-            choice = input("Choice (a for alternate, c for current window):")
+        mode = server_config[TUI_MODE_KEY]
 
-            if choice == "a":
-                mode = ALTERNATE_SCREEN_MODE
-                break
-            elif choice == "c":
-                mode = DELETE_SCREEN_MODE
-                break
-            else:
-                print("Wrong input, try again")
-                continue
+        if mode is None or mode not in [ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE]:
+            while True:
+                choice = input("Choice (a for alternate, c for current window):")
+
+                if choice == "a":
+                    mode = ALTERNATE_SCREEN_MODE
+                    break
+                elif choice == "c":
+                    mode = DELETE_SCREEN_MODE
+                    break
+                else:
+                    print("Wrong input, try again")
+                    continue
+
+            print()
+            print("Do you want to save this option permanently?")
+
+            while True:
+                save_ok = input("[y/n]:")
+                if save_ok.upper() == "Y":
+                    app_config.edit_config(TUI_MODE_KEY, mode)
+                    break
+                elif save_ok.upper() == "N":
+                    break
+                else:
+                    print("Wrong input, try again")
+                    continue
 
         startup()
         run_tui(mode)

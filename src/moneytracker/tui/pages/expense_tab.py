@@ -176,14 +176,14 @@ class ExpensePage(Page):
                     for sum_date, value in val.items():
                         # There can be multiple years, so we have to sum the months
                         month = int(sum_date[5:])
-                        table_dict[prim][None][month + 1] += value
-                        table_dict[prim][sec][month + 1] += value
+                        table_dict[prim][None][month - 1] += value
+                        table_dict[prim][sec][month - 1] += value
 
                 else:
                     for sum_date, value in val.items():
                         # There can be multiple years, so we have to sum the months
                         month = int(sum_date[5:])
-                        table_dict[prim][None][month + 1] += value
+                        table_dict[prim][None][month - 1] += value
 
         # add missing categories
         for prim, sec_list in cat_list.items():

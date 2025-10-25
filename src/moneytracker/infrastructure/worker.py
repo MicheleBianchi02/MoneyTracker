@@ -35,9 +35,9 @@ ADD_EXC_RATE_TASK_NAME = "add_exc_rate"
 EDIT_EXC_RATE_TASK_NAME = "edit_exc_rate"
 DELETE_EXC_RATE_TASK_NAME = "delete_exc_rate"
 
-ADD_APP_CONFIG_TASK_NAME = "add_app_config"
-EDIT_APP_CONFIG_TASK_NAME = "edit_app_config"
-DELETE_APP_CONFIG_TASK_NAME = "delete_app_config"
+ADD_APP_SETTING_TASK_NAME = "add_app_setting"
+EDIT_APP_SETTING_TASK_NAME = "edit_app_setting"
+DELETE_APP_SETTING_TASK_NAME = "delete_app_setting"
 ADD_APP_CURRENCY_TASK_NAME = "add_upd_app_currency"
 EDIT_APP_CURRENCY_TASK_NAME = "edit_app_currency"
 
@@ -337,13 +337,13 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
     # --- App configs ---
     # -------------------
 
-    elif task_name == ADD_APP_CONFIG_TASK_NAME:
+    elif task_name == ADD_APP_SETTING_TASK_NAME:
         try:
             exc_date_config_name = args[0]
             first_date_str = args[1]
 
             with uow:
-                uow.app_config.add(exc_date_config_name, first_date_str)
+                uow.app_setting.add(exc_date_config_name, first_date_str)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -352,13 +352,13 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
-    elif task_name == EDIT_APP_CONFIG_TASK_NAME:
+    elif task_name == EDIT_APP_SETTING_TASK_NAME:
         try:
             name = args[0]
             new_value = args[1]
 
             with uow:
-                uow.app_config.edit(name, new_value)
+                uow.app_setting.edit(name, new_value)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -372,12 +372,12 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
             logger.exception(str(e))
             update_status(job_id, FAILED_CODE, str(e))
 
-    elif task_name == DELETE_APP_CONFIG_TASK_NAME:
+    elif task_name == DELETE_APP_SETTING_TASK_NAME:
         try:
             name = args[0]
 
             with uow:
-                uow.app_config.delete(name)
+                uow.app_setting.delete(name)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -395,9 +395,9 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
                 if isinstance(upd_date, date):
                     upd_date = upd_date.isoformat()
 
-                uow.app_config.add(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
+                uow.app_setting.add(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
                 if currency_list:
-                    uow.app_config.add_upd_currency_list(currency_list)
+                    uow.app_setting.add_upd_currency_list(currency_list)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
@@ -415,9 +415,9 @@ def _complete_task(uow: AbstractUnitOfWork) -> None:
                 if isinstance(upd_date, date):
                     upd_date = upd_date.isoformat()
 
-                uow.app_config.edit(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
+                uow.app_setting.edit(DEPRECATION_CHECK_DATE_CONFIG_NAME, upd_date)
                 if currency_list:
-                    uow.app_config.add_upd_currency_list(currency_list)
+                    uow.app_setting.add_upd_currency_list(currency_list)
 
             logger.info(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)

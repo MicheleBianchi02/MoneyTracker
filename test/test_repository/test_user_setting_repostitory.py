@@ -170,7 +170,7 @@ def test_get_currencies_setting(connection) -> None:
         UtilTest.init_database(uow)
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(curr_list)
+        uow.app_setting.add_upd_currency_list(curr_list)
 
         user_list = UtilTest.fill_user(uow)
         for user in user_list:
@@ -204,7 +204,7 @@ def test_delete_currency_setting(connection) -> None:
         UtilTest.init_database(uow)
 
         # Add currencies to the database
-        uow.app_config.add_upd_currency_list(curr_list)
+        uow.app_setting.add_upd_currency_list(curr_list)
 
         user_list = UtilTest.fill_user(uow)
         for user in user_list:

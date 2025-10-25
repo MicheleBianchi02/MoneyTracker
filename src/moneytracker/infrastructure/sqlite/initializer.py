@@ -18,7 +18,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
 
         _init_currencies(connection)
 
-        _init_app_config(connection)
+        _init_app_setting(connection)
 
     except sqlite3.DatabaseError as e:
         raise RepositoryError(f"Error while initializing the database: {str(e)}") from e
@@ -206,14 +206,14 @@ def _init_transactions(connection: sqlite3.Connection) -> None:
     cursor.close()
 
 
-def _init_app_config(connection: sqlite3.Connection) -> None:
+def _init_app_setting(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
 
     # In this table app configuration parameter can be saved. Example are the app/db
     # version, some usefull dates (e.g. dates used for exchange rates).
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS app_config (
+        CREATE TABLE IF NOT EXISTS app_setting (
             name TEXT PRIMARY KEY,
             value TEXT 
         );

@@ -4,11 +4,11 @@ from datetime import date
 from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.exceptions import DuplicateEntityError, EntityNotFoundError, RepositoryError
 from moneytracker.core.repositories.abstract_app_config_repository import (
-    AbstractAppConfigRepository,
+    AbstractAppSettingRepository,
 )
 
 
-class AppConfigRepostiory(AbstractAppConfigRepository):
+class AppSettingRepostiory(AbstractAppSettingRepository):
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
@@ -16,7 +16,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
         cursor = self._connection.cursor()
 
         sql = """
-            INSERT INTO app_config (
+            INSERT INTO app_setting (
                 name,
                 value
             )
@@ -47,7 +47,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
             SELECT
                 value
             FROM 
-                app_config
+                app_setting
             WHERE 
                 name = ?
         """
@@ -75,7 +75,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
 
         sql = """
             UPDATE
-                app_config
+                app_setting
             SET
                 value = ?
             WHERE
@@ -101,7 +101,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
 
         sql = """
             DELETE FROM 
-                app_config
+                app_setting
             WHERE
                 name = ?
         """
@@ -129,7 +129,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
         sql = """
             SELECT 1
             FROM
-                app_config
+                app_setting
             WHERE
                 name = ?
         """
@@ -139,7 +139,7 @@ class AppConfigRepostiory(AbstractAppConfigRepository):
         exc_get = cursor.execute(sql, parameters).fetchone()
         cursor.close()
         if exc_get is None:
-            raise EntityNotFoundError("app_config", f"name:{name}")
+            raise EntityNotFoundError("app_setting", f"name:{name}")
 
     def add_upd_currency_list(self, currency_list: list[Currency]) -> None:
         cursor = self._connection.cursor()

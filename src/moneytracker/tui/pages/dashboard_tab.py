@@ -633,6 +633,7 @@ class DashboardPage(Page):
         filters["show_balance"] = False
 
         clear_screen()
+        draw_navigation_tab(active_tab, console)
 
         console.print("\n[yellow]Edit Transaction[/]")
         tr_list = self._draw_table(filters, console)

@@ -1,13 +1,11 @@
 from rich.console import Console
 
 from moneytracker.tui.pages.login import LoginPage
+from moneytracker.tui.pages.setting import ALTERNATE_SCREEN_MODE
 from moneytracker.tui.utils import clear_screen
 
 ENTER_ALT_SCREEN = "\x1b[?1049h"
 EXIT_ALT_SCREEN = "\x1b[?1049l"
-
-DELETE_SCREEN_MODE = "delete_screen_mode"
-ALTERNATE_SCREEN_MODE = "alternate_screen_mode"
 
 
 def run_tui(mode: str) -> None:

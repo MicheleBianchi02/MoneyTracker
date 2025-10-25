@@ -15,7 +15,7 @@ from moneytracker.core.exceptions import (
     TimeOutApiError,
 )
 from moneytracker.core.repositories.abstract_unit_of_work import AbstractUnitOfWork
-from moneytracker.core.services.app_config_service import AppConfigService
+from moneytracker.core.services.app_setting_service import AppSettingService
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.core.services.user_service import UserService
@@ -49,7 +49,7 @@ def check_deprecated(uow: AbstractUnitOfWork) -> None:
     exc_provider = ExchangeRateProvider()
 
     try:
-        last_check = uow.app_config.get(DEPRECATION_CHECK_DATE_CONFIG_NAME)
+        last_check = uow.app_setting.get(DEPRECATION_CHECK_DATE_CONFIG_NAME)
 
         if last_check is not None:
             last_check = date.fromisoformat(last_check)
@@ -59,7 +59,7 @@ def check_deprecated(uow: AbstractUnitOfWork) -> None:
                 return
 
         with uow:
-            currencies = uow.app_config.get_currency_list(is_active=True)
+            currencies = uow.app_setting.get_currency_list(is_active=True)
 
         if not currencies:
             currencies_present = False
@@ -187,14 +187,14 @@ def check_tr_with_dreprecated_currency() -> None:
 
     user_service = UserService()
     tr_service = TransactionService()
-    app_config_service = AppConfigService()
+    app_setting_service = AppSettingService()
 
     try:
         with manage_uow() as uow:
             # if a new deprecated currency has been found, fist the currencies
             # table is modified, then this function is called
 
-            currencies = app_config_service.get_currencies(uow, is_active=False)
+            currencies = app_setting_service.get_currencies(uow, is_active=False)
 
             curr_dict = {}
             for curr in currencies:
