@@ -16,7 +16,7 @@ from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 
 class UtilTest:
     # currencies = ["USD", "EUR", "CAD", "GBP", "NZD", "CNY"]
-    currencies = ExchangeRateProvider().available_currencies
+    currencies = ExchangeRateProvider().active_currencies
 
     @staticmethod
     def generate_random_string():

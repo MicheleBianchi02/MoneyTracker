@@ -5,7 +5,7 @@ from random import randint, random
 
 import pytest
 
-from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.domain.exchange_rate import Currency, ExchangeRate
 from moneytracker.core.exceptions import ExchangeRateApiError
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.infrastructure import task_queue, worker
@@ -13,11 +13,34 @@ from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import (
     ExchangeRateProvider,
 )
+from moneytracker.infrastructure.sqlite.repositories.app_setting_repository import (
+    AppSettingRepostiory,
+)
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import EXC_DATE_CONFIG_NAME
 from test.util_test import UtilTest
 
 # TODO: Test what happen when there is no internet connection
+
+
+def get_currency_list(self, is_active) -> list[Currency]:
+    exc_provider = ExchangeRateProvider()
+    active_currencies = exc_provider.available_currencies_detailed
+
+    curr_list = []
+    for curr in active_currencies["currencies"]:
+        if curr["status"] == "active":
+            curr_list.append(
+                Currency(
+                    code=curr["code"],
+                    symbol=curr["symbol"],
+                    name=curr["name"],
+                    is_active=True if curr["status"] == "active" else False,
+                    deprecation_date=None,
+                )
+            )
+
+    return curr_list
 
 
 @pytest.fixture
@@ -41,6 +64,7 @@ def isolated_worker(monkeypatch, connection_pool):
     """Starts a worker with an isolated task queue for each test."""
     q = Queue()
     monkeypatch.setattr(task_queue, "task_queue", q)
+    monkeypatch.setattr(AppSettingRepostiory, "get_currency_list", get_currency_list)
 
     uow_worker = UnitOfWork(connection_pool._get_connection())
     worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
@@ -58,13 +82,13 @@ def test_startup_add_from_empty(connection_pool, isolated_worker):
 
     uow = UnitOfWork(connection_pool._get_connection())
 
-    active_currencies = ExchangeRateService()._active_currencies
-    active_currencies_code = [curr.code for curr in active_currencies]
+    active_currencies_code = ExchangeRateService().active_currencies
     with uow:
         UtilTest.init_database(uow)
 
         # Add currencies to the database
-        uow.app_setting.add_upd_currency_list(active_currencies)
+        curr_list = get_currency_list(None, None)
+        uow.app_setting.add_upd_currency_list(curr_list)
 
     exc_service.add_exchange_rate(uow)
 
@@ -127,7 +151,8 @@ def test_startup_add_from_filled(connection_pool, isolated_worker):
         UtilTest.add_exchange_rate(uow, None, date_list)
 
         # Add currencies to the database
-        uow.app_setting.add_upd_currency_list(active_currencies)
+        curr_list = get_currency_list(None, None)
+        uow.app_setting.add_upd_currency_list(curr_list)
 
     exc_service.add_exchange_rate(uow)
 

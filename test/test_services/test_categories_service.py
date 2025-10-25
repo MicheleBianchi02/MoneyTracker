@@ -5,14 +5,40 @@ from multiprocessing import Queue
 
 import pytest
 
+from moneytracker.core.domain.exchange_rate import Currency
 from moneytracker.core.domain.transaction import TransactionOut
 from moneytracker.core.exceptions import OperationNotPermittedError
 from moneytracker.core.services.category_service import CategoryService
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.infrastructure import task_queue, worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
+from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import ExchangeRateProvider
+from moneytracker.infrastructure.sqlite.repositories.app_setting_repository import (
+    AppSettingRepostiory,
+)
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from test.util_test import UtilTest
+
+
+def get_currency_list(self, is_active) -> list[Currency]:
+    exc_provider = ExchangeRateProvider()
+    active_currencies = exc_provider.available_currencies_detailed
+    curr_list = []
+    for curr in active_currencies["currencies"]:
+        dep_date = curr.get("deprecation_date", None)
+        if dep_date is not None:
+            dep_date = date.fromisoformat(dep_date)
+        curr_list.append(
+            Currency(
+                code=curr["code"],
+                symbol=curr["symbol"],
+                name=curr["name"],
+                is_active=True if curr["status"] == "active" else False,
+                deprecation_date=dep_date,
+            )
+        )
+
+    return curr_list
 
 
 @pytest.fixture
@@ -38,6 +64,8 @@ def isolated_worker(monkeypatch, connection_pool):
     """Starts a worker with an isolated task queue for each test."""
     q = Queue()
     monkeypatch.setattr(task_queue, "task_queue", q)
+
+    monkeypatch.setattr(AppSettingRepostiory, "get_currency_list", get_currency_list)
 
     uow_worker = UnitOfWork(connection_pool._get_connection())
     worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
@@ -82,20 +110,22 @@ def test_delete_cat(connection_pool: ConnectionPool, isolated_worker):
 
 
 def test_delete_cat_with_tr(connection_pool, isolated_worker):
+    curr_list = get_currency_list(None, None)
+
     def compare_tr(tr_list, tr_get):
         tr_list = sorted(tr_list, key=transaction_sort_key)
         tr_get = sorted(tr_get, key=transaction_sort_key)
         assert tr_list == tr_get
 
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
+    with UnitOfWork(connection_pool._get_connection()) as uow:
+        UtilTest.init_database(uow)
+
+        uow.app_setting.add_upd_currency_list(curr_list)
+
+        _, cat_tot_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
 
     tr_service = TransactionService()
     cat_service = CategoryService()
-
-    with UnitOfWork(connection_pool._get_connection()) as uow:
-        UtilTest.init_database(uow)
-        _, cat_tot_list, tr_list = UtilTest.fill_user_cat_tr(uow, n_prim=15, n_tr=500)
 
     n = 20
     for _ in range(n):
@@ -127,8 +157,6 @@ def test_delete_cat_with_tr(connection_pool, isolated_worker):
                 cat_get = cat_service.get(uow, cat.id_user, cat.year, cat.category_type)
                 assert cat in cat_get
 
-    worker.end_worker()
-
 
 # --- Utils
 
@@ -147,4 +175,3 @@ def transaction_sort_key(tr: TransactionOut) -> tuple:
         tr.name,
         tr.tr_date,
     )
-

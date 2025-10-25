@@ -7,18 +7,41 @@ from multiprocessing import Queue
 import pytest
 
 from moneytracker.core.domain.category import CategoryIn
-from moneytracker.core.domain.exchange_rate import ExchangeRate
+from moneytracker.core.domain.exchange_rate import Currency, ExchangeRate
 from moneytracker.core.domain.transaction import TransactionIn
-from moneytracker.core.services.exc_rate_service import ExchangeRateService
 from moneytracker.core.services.transaction_service import TransactionService
 from moneytracker.infrastructure import task_queue, worker
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.exchange_rate_provider.exchange_rate import (
     ExchangeRateProvider,
 )
+from moneytracker.infrastructure.sqlite.repositories.app_setting_repository import (
+    AppSettingRepostiory,
+)
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import EXC_DATE_CONFIG_NAME
 from test.util_test import UtilTest
+
+
+def get_currency_list(self, is_active) -> list[Currency]:
+    exc_provider = ExchangeRateProvider()
+    active_currencies = exc_provider.available_currencies_detailed
+    curr_list = []
+    for curr in active_currencies["currencies"]:
+        dep_date = curr.get("deprecation_date", None)
+        if dep_date is not None:
+            dep_date = date.fromisoformat(dep_date)
+        curr_list.append(
+            Currency(
+                code=curr["code"],
+                symbol=curr["symbol"],
+                name=curr["name"],
+                is_active=True if curr["status"] == "active" else False,
+                deprecation_date=dep_date,
+            )
+        )
+
+    return curr_list
 
 
 @pytest.fixture
@@ -45,6 +68,8 @@ def isolated_worker(monkeypatch, connection_pool):
     q = Queue()
     monkeypatch.setattr(task_queue, "task_queue", q)
 
+    monkeypatch.setattr(AppSettingRepostiory, "get_currency_list", get_currency_list)
+
     uow_worker = UnitOfWork(connection_pool._get_connection())
     worker_thread = threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False)
     worker_thread.start()
@@ -59,8 +84,6 @@ def test_add_transaction(connection_pool, isolated_worker):
     """In this test we just need to see if the exchange rates are added correctly.
     Because adding the transaction will simply call uow.transactions.add that has
     already been tested in repositories's test"""
-    uow_worker = UnitOfWork(connection_pool._get_connection())
-    threading.Thread(target=worker.writer_worker, args=(uow_worker,), daemon=False).start()
 
     tr_service = TransactionService()
     uow = UnitOfWork(connection_pool._get_connection())
@@ -100,11 +123,11 @@ def test_add_transaction(connection_pool, isolated_worker):
 
         from_curr = exc_provider.base_currency
 
-        active_currencies = ExchangeRateService()._active_currencies
-        active_currencies_code = [curr.code for curr in active_currencies]
+        active_currencies_code = exc_provider._active_currencies
 
         # Add currencies to the database
-        uow.app_setting.add_upd_currency_list(active_currencies)
+        curr_list = get_currency_list(None, None)
+        uow.app_setting.add_upd_currency_list(curr_list)
 
         exc_list = []
 
