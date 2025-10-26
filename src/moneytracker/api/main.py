@@ -138,12 +138,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.terminal:
-        print("Do you want to open an alternate screen (without scrolling)")
-        print("or use this terminal window (all history will be deleted)?")
-
         mode = server_config[TUI_MODE_KEY]
 
         if mode is None or mode not in [ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE]:
+            print("Do you want to open an alternate screen (without scrolling)")
+            print("or use this terminal window (all history will be deleted)?")
             while True:
                 choice = input("Choice (a for alternate, c for current window):")
 
@@ -157,8 +156,7 @@ if __name__ == "__main__":
                     print("Wrong input, try again")
                     continue
 
-            print()
-            print("Do you want to save this option permanently?")
+            print("\nDo you want to save this option permanently?")
 
             while True:
                 save_ok = input("[y/n]:")

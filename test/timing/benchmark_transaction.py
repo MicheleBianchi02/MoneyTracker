@@ -4,14 +4,15 @@
 
 import random
 import sqlite3
+from datetime import timedelta
 
 import pytest
-from util_test import UtilTest
 
-from moneytracker.core.domain.transaction import TransactionIn
+from moneytracker.core.domain.transaction import TransactionRepoIn
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.initializer import initialize_database
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 
 @pytest.fixture
@@ -36,11 +37,9 @@ def test_add_single_transaction(benchmark, connection):
     tr_date = UtilTest.generate_random_date(cat1.year)
     currencies = ["USD", "EUR", "CAD", "GBP", "NZD", "CNY"]
 
-    tr = TransactionIn(
+    tr = TransactionRepoIn(
         id_user=id_user,
-        primary=cat1.primary,
-        secondary=cat1.secondary,
-        tr_type=cat1.category_type,
+        id_cat=cat1.id_secondary,
         tr_date=tr_date,
         name=UtilTest.generate_random_string(),
         value=random.random() * 100000,
@@ -50,7 +49,7 @@ def test_add_single_transaction(benchmark, connection):
 
     def f():
         with UnitOfWork(connection) as uow:
-            uow.transaction.add(tr)
+            uow.transaction.add([tr])
 
     benchmark(f)
 
@@ -72,11 +71,9 @@ def test_add_multiple_transaction(benchmark, connection):
         id_user = cat1.id_user
         tr_date = UtilTest.generate_random_date(cat1.year)
 
-        tr = TransactionIn(
+        tr = TransactionRepoIn(
             id_user=id_user,
-            primary=cat1.primary,
-            secondary=cat1.secondary,
-            tr_type=cat1.category_type,
+            id_cat=cat1.id_secondary,
             tr_date=tr_date,
             name=UtilTest.generate_random_string(),
             value=random.random() * 100000,
@@ -110,7 +107,7 @@ def test_get_all_transactions(benchmark, connection):
         with UnitOfWork(connection) as uow:
             return uow.transaction.get(1, None, None)
 
-    tr_get_list = benchmark(f)
+    tr_get_list, _ = benchmark(f)
 
     benchmark.extra_info["db info"] = f"{len(tr_list)} transaction present in the db"
     benchmark.extra_info["query"] = "get by user. begin_date = end_date = None"
@@ -118,47 +115,55 @@ def test_get_all_transactions(benchmark, connection):
 
 
 def test_get_summary(benchmark):
-    #
-    # with UnitOfWork(connection) as uow:
-    #     _, _, tr_list = UtilTest.fill_user_cat_tr(
-    #         uow,
-    #         n_user=1,
-    #         n_prim=20,
-    #         n_tr=200,
-    #     )
-    #
-    #     UtilTest.add_exchange_rate(uow, tr_list)
-    #
-
     db_path = "test/timing/benchmark.db"
     conn = sqlite3.connect(db_path)
 
+    # Use this only if it is necessary to fill the database
     with UnitOfWork(conn) as uow:
+        UtilTest.init_database(uow)
+        _, _, tr_list = UtilTest.fill_user_cat_tr(
+            uow,
+            n_user=3,
+            n_prim=30,
+            n_tr=1000000,
+        )
+
+        min_date = min(tr.tr_date for tr in tr_list)
+        max_date = max(tr.tr_date for tr in tr_list)
+
+        date_list = []
+
+        exc_date = min_date
+        while exc_date <= max_date:
+            date_list.append(exc_date)
+            exc_date += timedelta(days=1)
+
+        UtilTest.add_exchange_rate(uow, tr_list=None, date_list=date_list)
+
+    with UnitOfWork(conn) as uow:
+        UtilTest.init_database(uow)
         user_list = uow.user.get(None)
 
-        # remove duplicate
-        id_user_list = {user.id for user in user_list}
-        id_user_list = list(id_user_list)
+        id_user_list = [user.id for user in user_list]
 
         tr_list = []
         for id_user in id_user_list:
-            tr_list += uow.transaction.get(id_user, None, None, "expense")
+            tr_get, _ = uow.transaction.get(id_user, None, None, tr_type="expense")
+            tr_list.extend(tr_get)
 
-    begin_date = UtilTest.generate_random_date(2005)
+        UtilTest.add_exchange_rate(uow, tr_list)
+
+    id_user = 3
 
     def f():
         with UnitOfWork(conn) as uow:
-            return uow.transaction.get_summary(3, begin_date, None, "expense", "USD")
+            return uow.transaction.get_summary(id_user, None, None, "expense", "USD")
 
-    tr_get_list, is_updated = benchmark(f)
+    _, _ = benchmark(f)
 
-    benchmark.extra_info["db info"] = f"{len(tr_list)} transactions present in the db"
+    benchmark.extra_info["db info"] = f"{len(tr_list)} expenses present in the db"
     benchmark.extra_info["query"] = (
         "get by user. begin_date = end_date = None, tr_type = 'expense', to_currency = 'USD'",
     )
-    tr_list = [
-        tr
-        for tr in tr_list
-        if tr.id_user == 3 and tr.tr_type == "expense" and tr.tr_date > begin_date
-    ]
+    tr_list = [tr for tr in tr_list if tr.id_user == id_user and tr.tr_type == "expense"]
     benchmark.extra_info["n_tr"] = f"{len(tr_list)} transaction were used"

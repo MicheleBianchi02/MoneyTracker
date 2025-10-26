@@ -5,14 +5,15 @@
 
 from datetime import timedelta
 
-from util_test import UtilTest
-
 from moneytracker.infrastructure.connection_pool import ConnectionPool
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
+from test.util_test import UtilTest
 
 DB_PATH = "test/timing/benchmark.db"  # same directory of the test
 
 # NOTE: If updating the database (eg changing some table columns), delete the database
+
+# TODO: This doesn't work at the moment
 
 if __name__ == "__main__":
     connection_pool = ConnectionPool(DB_PATH, max_connections=1)
