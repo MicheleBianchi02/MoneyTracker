@@ -17,9 +17,6 @@ LOG_LEVEL_KEY = "log_level"  # log level, used both for uvicorn and the server
 TUI_MODE_KEY = "tui_mode"
 
 
-logger = logging.getLogger(__name__)
-
-
 class AppConfig:
     def __init__(self):
         dirs = PlatformDirs(APPNAME, AUTHOR)

@@ -48,7 +48,7 @@ class UserSettingService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logging.info(
+        logging.debug(
             f"Adding user setting with name {setting_name} for user with id_user: {id_user}"
         )
 
@@ -57,7 +57,7 @@ class UserSettingService:
                 setting = uow.user_setting.get(None, setting_name)
 
             if not setting:
-                logger.error(f"Setting with name:{setting_name} not present in the database")
+                logger.debug(f"Setting with name:{setting_name} not present in the database")
                 raise ServiceSettingNotFoundError("Setting not found")
 
             args = (id_user, setting_name, value)
@@ -93,7 +93,7 @@ class UserSettingService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info(
+        logger.debug(
             f"Getting user settings with name {setting_name} for user with id_user: {id_user}"
         )
 
@@ -139,14 +139,14 @@ class UserSettingService:
 
         currency_code = currency_code.upper()
 
-        logger.info(f"Adding currency {currency_code} to the user with id_user:{id_user}")
+        logger.debug(f"Adding currency {currency_code} to the user with id_user:{id_user}")
 
         try:
             user_currencies = self.get_currency_list(uow, id_user, is_active=None)
             user_currencies = [curr.code for curr in user_currencies]
 
             if currency_code in user_currencies:
-                logger.error(
+                logger.debug(
                     f"The currency: {currency_code} is already present for the user with id_user: {id_user}"
                 )
                 raise ServiceDuplicateCurrencyError(
@@ -154,7 +154,7 @@ class UserSettingService:
                 )
 
             if not ExchangeRateService().validate_currency(currency_code):
-                logger.error(f"{currency_code} is not a valid currency")
+                logger.debug(f"{currency_code} is not a valid currency")
                 raise ServiceInvalidCurrencyError()
 
             args = (id_user, currency_code)
@@ -186,7 +186,7 @@ class UserSettingService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info(f"Getting currency list for user with id_user: {id_user}")
+        logger.debug(f"Getting currency list for user with id_user: {id_user}")
 
         try:
             if id_user is not None:
@@ -228,7 +228,7 @@ class UserSettingService:
             - RepositoryError: If something went wrong with the database
         """
 
-        logger.info(f"Deleting curerncy: {currency_code} for user with id_user: {id_user}")
+        logger.debug(f"Deleting curerncy: {currency_code} for user with id_user: {id_user}")
 
         try:
             with uow:
@@ -238,7 +238,7 @@ class UserSettingService:
             currency_code = currency_code.upper()
 
             if currency_code not in curr_list:
-                logger.error(
+                logger.debug(
                     f"The currency: {currency_code} is not present in the database "
                     "for the user with id_user: {id_user}"
                 )

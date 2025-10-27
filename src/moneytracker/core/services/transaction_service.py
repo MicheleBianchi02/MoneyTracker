@@ -63,7 +63,7 @@ class TransactionService:
         if not isinstance(transaction_list, list):
             transaction_list = [transaction_list]
 
-        logger.info(
+        logger.debug(
             f"Adding {len(list(transaction_list))} transactions to the "
             f"database for user with id_user:{id_user}"
         )
@@ -76,7 +76,7 @@ class TransactionService:
                 for tr in transaction_list:
                     tr.currency = tr.currency.upper()
                     if not exc_rate_service.validate_currency(tr.currency):
-                        logger.error(f"{tr.currency} is not a valid currency")
+                        logger.debug(f"{tr.currency} is not a valid currency")
                         raise ServiceInvalidCurrencyError()
 
                     date_list.append(tr.tr_date)
@@ -90,7 +90,7 @@ class TransactionService:
                     )
 
                     if id_cat is None:
-                        logger.error("Category not present in the database")
+                        logger.debug("Category not present in the database")
                         raise ServiceCategoryNotFoundError(
                             message="Category not present in the database.",
                             details={
@@ -203,23 +203,23 @@ class TransactionService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info(f"Getting transaction list for user with id_user:{id_user}")
+        logger.debug(f"Getting transaction list for user with id_user: {id_user}")
 
         exc_rate_service = ExchangeRateService()
 
         if order is not None:
             if order not in ["name", "date", "value", "currency", "primary", "secondary"]:
-                logger.error(f"{order} is not a valid order parameter")
+                logger.debug(f"{order} is not a valid order parameter")
                 raise OperationNotPermittedError()
 
         if order_dir not in ["ASC", "DESC"]:
-            logger.error(f"{order_dir} is not a valid order_dir parameter")
+            logger.debug(f"{order_dir} is not a valid order_dir parameter")
             raise OperationNotPermittedError()
 
         if to_currency is not None:
             to_currency = to_currency.upper()
             if not exc_rate_service.validate_currency(to_currency):
-                logger.error(f"{to_currency} is not a valid currency")
+                logger.debug(f"{to_currency} is not a valid currency")
                 raise ServiceInvalidCurrencyError()
         try:
             with uow:
@@ -242,7 +242,7 @@ class TransactionService:
 
         except EntityNotFoundError as e:
             # If an exchange rate is not found, try to add it
-            logger.error(f"{str(e)} : Adding missing exchange rates.")
+            logger.debug(f"{str(e)} : Adding missing exchange rates.")
 
             try:
                 with uow:
@@ -281,11 +281,11 @@ class TransactionService:
                 return tr_list, is_valid
 
             except EntityNotFoundError as e:
-                logger.error(f"{str(e)}")
+                logger.debug(f"{str(e)}")
                 raise ServiceExchangeRateNotFoundError("An exchange rate is still not found") from e
 
             except InvalidParameterError as e:
-                logger.error(
+                logger.debug(
                     "Adding exchange rates with from_currency and to_curerncy parameters equal is prohibited"
                 )
                 raise ServiceError(
@@ -294,7 +294,7 @@ class TransactionService:
                 ) from e
 
             except DuplicateEntityError as e:
-                logger.error("A duplicate exchange rate was added to the database")
+                logger.debug("A duplicate exchange rate was added to the database")
                 raise ServiceError(
                     "An attempt was made to add an already existing exchange rate",
                 ) from e
@@ -387,14 +387,14 @@ class TransactionService:
 
         """
 
-        logger.info("Getting transaction summary")
+        logger.debug(f"Getting transaction summary for user with id_user: {id_user}")
 
         exc_rate_service = ExchangeRateService()
 
         if to_currency is not None:
             to_currency = to_currency.upper()
             if not exc_rate_service.validate_currency(to_currency):
-                logger.error(f"{to_currency} is not a valid currency")
+                logger.debug(f"{to_currency} is not a valid currency")
                 raise ServiceInvalidCurrencyError()
 
         try:
@@ -522,13 +522,13 @@ class TransactionService:
                 currency. If None, the exception is not raised.
             - ServiceError: If something went wrong with the repository or the service.
         """
-        logger.info("Getting transactions balance")
+        logger.debug(f"Getting transactions balance for user with id_user: {id_user}")
 
         exc_rate_service = ExchangeRateService()
 
         to_currency = to_currency.upper()
         if not exc_rate_service.validate_currency(to_currency):
-            logger.error(f"{to_currency} is not a valid currency")
+            logger.debug(f"{to_currency} is not a valid currency")
             raise ServiceInvalidCurrencyError()
 
         try:
@@ -649,13 +649,13 @@ class TransactionService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Editing transaction")
+        logger.debug(f"Editing transaction for user with id_user: {id_user}")
 
         exc_rate_service = ExchangeRateService()
 
         new_tr.currency = new_tr.currency.upper()
         if not exc_rate_service.validate_currency(new_tr.currency):
-            logger.error(f"{new_tr.currency} is not a valid currency")
+            logger.debug(f"{new_tr.currency} is not a valid currency")
             raise ServiceInvalidCurrencyError()
 
         try:
@@ -663,19 +663,19 @@ class TransactionService:
                 tr = uow.transaction.get_by_id_tr(id_tr)
 
                 if tr is None:
-                    logger.error(f"Transaction not found with id_tr:{id_tr}")
+                    logger.debug(f"Transaction not found with id_tr:{id_tr}")
                     raise ServiceTransactionNotFoundError(
                         """The transaction with the given id is not present in the database."""
                     )
 
                 if tr.id_user != id_user:
-                    logger.error(
+                    logger.debug(
                         f"The transaction with id:{id_tr} doesn't pertain to the user with id_user:{id_user}"
                     )
                     raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
                 if tr.tr_type != new_tr.tr_type:
-                    logger.error("Cannot change the transaction type")
+                    logger.debug("Cannot change the transaction type")
                     raise OperationNotPermittedError("Cannot change the transaction type")
 
                 # if the category parameter didn't change, the old id is returned
@@ -688,7 +688,7 @@ class TransactionService:
                 )
 
                 if new_id_cat is None:
-                    logger.error("The specified category is not present in the database.")
+                    logger.debug("The specified category is not present in the database.")
                     raise ServiceCategoryNotFoundError(
                         message="New category not found",
                         details={
@@ -736,18 +736,18 @@ class TransactionService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Deleting transaction")
+        logger.debug(f"Deleting transaction for user with id_user: {id_user}")
 
         try:
             with uow:
                 tr = uow.transaction.get_by_id_tr(id_tr)
 
             if tr.id_user != id_user:
-                logger.error("The transaction doesn't pertain to the user")
+                logger.debug("The transaction doesn't pertain to the user")
                 raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
             if tr is None:
-                logger.error(f"Transaction not found with id_tr:{id_tr}")
+                logger.debug(f"Transaction not found with id_tr:{id_tr}")
                 raise ServiceTransactionNotFoundError(
                     """The transaction with the given id is not present in the database."""
                 )

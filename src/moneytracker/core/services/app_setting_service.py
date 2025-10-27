@@ -13,7 +13,7 @@ class AppSettingService:
         uow: UnitOfWork,
         is_active: bool | None = None,
     ) -> list[Currency]:
-        logger.info(f"Getting default currency list with is_active:{is_active}")
+        logger.debug(f"Getting default currency list with is_active:{is_active}")
 
         try:
             with uow:

@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 class ConnectionPool:
     def __init__(self, db_path: str, max_connections: int = 10):
+        logger.info("Creating database connections")
+
         self.db_path = db_path
         self.max_connections = max_connections
         self._pool = Queue(maxsize=max_connections)
@@ -104,6 +106,5 @@ class ConnectionPool:
                 break
 
 
-logger.info("Creating database connections")
 db_path = app_config.get_data_file_path()
 connection_pool = ConnectionPool(db_path)

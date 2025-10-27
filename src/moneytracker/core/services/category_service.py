@@ -71,7 +71,9 @@ class CategoryService:
         if not isinstance(cat_list, list):
             cat_list = [cat_list]
 
-        logger.info(f"Adding {len(cat_list)} categories into the database.")
+        logger.debug(
+            f"Adding {len(cat_list)} categories into the database for user with id_user: {id_user}"
+        )
 
         # TODO: Check that the secondary is not equal to the none_replacement used
         # inside the summary function
@@ -79,13 +81,13 @@ class CategoryService:
             with uow:
                 for cat in cat_list:
                     if cat.primary == "" or cat.secondary == "":
-                        logger.error("Empty category's primary or secondary is not valid")
+                        logger.debug("Empty category's primary or secondary is not valid")
                         raise InvalidCategoryError(
                             "Empty category's primary or secondary is not valid"
                         )
 
                     if cat.category_type == "income" and cat.secondary is not None:
-                        logger.error(
+                        logger.debug(
                             "An attempt was made to add a category with type "
                             "income and a non null secondary. This is not valid"
                         )
@@ -107,7 +109,7 @@ class CategoryService:
                     )
 
                     if id_cat is not None:
-                        logger.error(
+                        logger.debug(
                             "An attemp was made to add an already existing category to the database",
                         )
                         raise ServiceDuplicateCategoryError(
@@ -148,7 +150,9 @@ class CategoryService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Getting categories primary list from the database.")
+        logger.debug(
+            f"Getting categories primary list from the database for user with id_user: {id_user}"
+        )
 
         try:
             with uow:
@@ -189,7 +193,9 @@ class CategoryService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Getting categories secondary list from the database.")
+        logger.debug(
+            f"Getting categories secondary list from the database for user with id_user: {id_user}"
+        )
 
         try:
             with uow:
@@ -226,7 +232,7 @@ class CategoryService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Getting categories list from the database.")
+        logger.debug(f"Getting categories list from the database for user with id_user: {id_user}")
 
         try:
             with uow:
@@ -259,7 +265,7 @@ class CategoryService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Editing category")
+        logger.debug(f"Editing category for user with id_user: {id_user}")
 
         try:
             with uow:
@@ -267,7 +273,7 @@ class CategoryService:
                 # if id_prim is None, it means that the category is a primary
 
             if not cat_id_user:
-                logger.error(
+                logger.debug(
                     f"Category with id_cat:{id_cat} doesn't exist in the database",
                 )
                 raise ServiceCategoryNotFoundError(
@@ -275,13 +281,13 @@ class CategoryService:
                 )
 
             if cat_id_user != id_user:
-                logger.error(
+                logger.debug(
                     f"The category with id:{id_cat} doesn't pertain to the user with id_user:{id_user}"
                 )
                 raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
             if new_name == "":
-                logger.error("Empty category's primary or secondary is not valid")
+                logger.debug("Empty category's primary or secondary is not valid")
                 raise InvalidCategoryError("Empty category's primary or secondary is not valid")
 
             with uow:
@@ -292,7 +298,7 @@ class CategoryService:
 
                     for prim in prim_list:
                         if new_name == prim.primary and id_cat != prim.id_primary:
-                            logger.error(
+                            logger.debug(
                                 "An attemp was made to add an already existing category to the database",
                             )
                             raise ServiceDuplicateCategoryError(
@@ -306,7 +312,7 @@ class CategoryService:
 
                     for sec in sec_list:
                         if new_name == sec.secondary and sec.id_secondary:
-                            logger.error(
+                            logger.debug(
                                 "An attemp was made to add an already existing category to the database",
                             )
                             raise ServiceDuplicateCategoryError(
@@ -349,7 +355,7 @@ class CategoryService:
             still has secondaries as child.
         """
 
-        logger.info("Deleting category")
+        logger.debug(f"Deleting category for user with id_user: {id_user}")
 
         try:
             with uow:
@@ -357,7 +363,7 @@ class CategoryService:
                 # if id_parent_cat is None, it means that the category is a priamry
 
                 if cat_id_user is None:
-                    logger.error(
+                    logger.debug(
                         f"Category with id_cat:{id_cat} doesn't exist in the database",
                     )
                     raise ServiceCategoryNotFoundError(
@@ -365,7 +371,7 @@ class CategoryService:
                     )
 
                 if cat_id_user != id_user:
-                    logger.error(
+                    logger.debug(
                         f"The category with id:{id_cat} doesn't pertain to the user with id_user:{id_user}"
                     )
                     raise OperationNotPermittedError("The transaction doesn't pertain to the user")
@@ -374,7 +380,7 @@ class CategoryService:
                     sec_list = uow.category.get_secondary_list_by_id(id_cat)
 
                     if sec_list:
-                        logger.error(
+                        logger.debug(
                             "Cannot delete a primary with existing secondaries",
                         )
                         raise OperationNotPermittedError(
@@ -384,7 +390,7 @@ class CategoryService:
                 tr_list = uow.transaction.get_by_id_cat(id_cat)
 
                 if tr_list != []:
-                    logger.info(
+                    logger.debug(
                         "Cannot delete category whith transactions using that category",
                     )
                     return tr_list

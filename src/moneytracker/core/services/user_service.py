@@ -49,7 +49,7 @@ class UserService:
             The default user settings are also added for that new user.
         """
 
-        logger.info("Saving new user")
+        logger.debug("Saving new user")
 
         try:
             try:
@@ -67,7 +67,7 @@ class UserService:
             usernames = [user.username for user in user_list]
 
             if username in usernames:
-                logger.info(f"The username:{username} is already present in the database")
+                logger.debug(f"The username:{username} is already present in the database")
                 raise UsernameAlreadyPresentError("Username already in use")
 
             args = (username, hashed_password)
@@ -103,7 +103,7 @@ class UserService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Authenticating user")
+        logger.debug("Authenticating user")
         try:
             with uow:
                 user_list = uow.user.get(username)
@@ -145,7 +145,7 @@ class UserService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Getting user")
+        logger.debug("Getting user")
 
         try:
             with uow:
@@ -194,21 +194,21 @@ class UserService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Editing user")
+        logger.debug(f"Editing user with id_user: {id_user}")
 
         try:
             with uow:
                 user = uow.user.get_by_id(id_user)
 
             if user is None:
-                logger.error(f"User with id:{id_user} not found")
+                logger.debug(f"User with id:{id_user} not found")
                 raise ServiceUserNotFoundError(
                     "The user with the given id is not present in the database",
                 )
 
             if new_password is not None:
                 if old_password is None:
-                    logger.error(
+                    logger.debug(
                         "Changing password without providing the old one is prohibited",
                     )
                     raise OperationNotPermittedError(
@@ -221,7 +221,7 @@ class UserService:
                     password = ph.hash(new_password)
 
                 except Exception:
-                    logger.error(
+                    logger.debug(
                         "The current password doesn't match the provided old_password",
                     )
                     raise OperationNotPermittedError(
@@ -237,7 +237,7 @@ class UserService:
                 username_list = [user.username for user in user_list]
 
                 if new_username in username_list:
-                    logger.error(f"Username: {new_username} already present in the database")
+                    logger.debug(f"Username: {new_username} already present in the database")
                     raise UsernameAlreadyPresentError("Username already in use")
 
                 username = new_username
@@ -268,14 +268,14 @@ class UserService:
             - ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info(f"Deleting user with id_user: {id_user}")
+        logger.debug(f"Deleting user with id_user: {id_user}")
 
         try:
             with uow:
                 user = uow.user.get_by_id(id_user)
 
             if user is None:
-                logger.error(f"User with id:{id_user} not found")
+                logger.debug(f"User with id:{id_user} not found")
                 raise ServiceUserNotFoundError(
                     "The user with the given id is not present in the database",
                 )
@@ -285,7 +285,7 @@ class UserService:
                 ph.verify(user.password, current_password)
 
             except Exception:
-                logger.error(
+                logger.debug(
                     "The current password doesn't match the provided old_password",
                 )
                 raise OperationNotPermittedError(

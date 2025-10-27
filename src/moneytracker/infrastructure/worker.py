@@ -80,7 +80,7 @@ def writer_worker(uow: UnitOfWork | None = None) -> None:
 def _complete_task(uow: UnitOfWork) -> None:
     task_name, job_id, args = get_task()
 
-    logger.info(f"Processing writing task: {task_name}, job_id:{job_id}")
+    logger.debug(f"Processing writing task: {task_name}, job_id:{job_id}")
 
     # ------------
     # --- User ---
@@ -98,7 +98,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 for setting in default_settings:
                     uow.user_setting.add(id_user, setting.name, setting.value)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE, result={"id_user": id_user})
 
         except (DuplicateEntityError, RepositoryError, Exception) as e:
@@ -114,7 +114,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.user.edit(id_user, username, password)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (
@@ -133,7 +133,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.user.delete(id_user)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -152,7 +152,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.category.add(id_user, cat_list)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (
@@ -173,7 +173,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.category.edit(id_cat, new_name)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (RepositoryError, Exception) as e:
@@ -187,7 +187,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.category.delete(id_cat)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (RepositoryError, Exception) as e:
@@ -220,7 +220,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                     uow.exchange_rate.add(exc_rates)
                 uow.transaction.add(tr_list)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except DuplicateEntityError as e:
@@ -250,7 +250,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 if exc_rates:
                     uow.exchange_rate.add(exc_rates)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except DuplicateEntityError as e:
@@ -277,7 +277,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.transaction.delete(id_tr)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (RepositoryError, Exception) as e:
@@ -297,7 +297,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.user_setting.add(id_user, setting_name, value)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, ForeignKeyError, RepositoryError, Exception) as e:
@@ -311,7 +311,7 @@ def _complete_task(uow: UnitOfWork) -> None:
 
             with uow:
                 uow.user_setting.add_user_currency(id_user, currency_code)
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (DuplicateEntityError, ForeignKeyError, RepositoryError, Exception) as e:
@@ -326,7 +326,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.user_setting.delete_user_currency(id_user, currency_code)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -345,7 +345,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.app_setting.add(exc_date_config_name, first_date_str)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (DuplicateEntityError, RepositoryError, Exception) as e:
@@ -360,7 +360,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.app_setting.edit(name, new_value)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (
@@ -379,7 +379,7 @@ def _complete_task(uow: UnitOfWork) -> None:
             with uow:
                 uow.app_setting.delete(name)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -399,7 +399,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 if currency_list:
                     uow.app_setting.add_upd_currency_list(currency_list)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (DuplicateEntityError, RepositoryError, Exception) as e:
@@ -419,7 +419,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 if currency_list:
                     uow.app_setting.add_upd_currency_list(currency_list)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -438,7 +438,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 for updated_exc in exc_rate_list:
                     uow.exchange_rate.add(updated_exc)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (InvalidParameterError, DuplicateEntityError, RepositoryError, Exception) as e:
@@ -453,7 +453,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 for updated_exc in exc_rate_list:
                     uow.exchange_rate.edit(updated_exc)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (EntityNotFoundError, RepositoryError, Exception) as e:
@@ -470,7 +470,7 @@ def _complete_task(uow: UnitOfWork) -> None:
                 for rate in exc_rate_list:
                     uow.exchange_rate.delete(rate)
 
-            logger.info(f"Task completed, job_id:{job_id}")
+            logger.debug(f"Task completed, job_id:{job_id}")
             update_status(job_id, COMPLETED_CODE)
 
         except (RepositoryError, Exception) as e:

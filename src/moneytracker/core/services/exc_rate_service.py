@@ -405,7 +405,7 @@ class ExchangeRateService:
             ServiceError: If something went wrong with the repository or the service.
         """
 
-        logger.info("Getting exchange rates range")
+        logger.debug("Getting exchange rates range")
         try:
             with uow:
                 return uow.exchange_rate.get_range(begin_date, end_date, from_currency, to_currency)
