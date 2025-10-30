@@ -108,7 +108,7 @@ class AppConfig:
             "loggers": {
                 "": {  # root logger
                     "handlers": ["console", "file"],
-                    "level": "INFO",
+                    "level": f"{log_level.upper()}",
                 },
             },
         }

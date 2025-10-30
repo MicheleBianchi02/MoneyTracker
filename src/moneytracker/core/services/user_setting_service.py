@@ -232,7 +232,7 @@ class UserSettingService:
 
         try:
             with uow:
-                curr_list = uow.user_setting.get_user_currency(id_user)
+                curr_list = uow.user_setting.get_user_currency(id_user, None)
             curr_list = [curr.code for curr in curr_list]
 
             currency_code = currency_code.upper()
