@@ -6,6 +6,8 @@ import sys
 # to use this python script or it is better to run the local app from the UI script
 # or from a bash script
 
+# Currently it is used only to run the beckend. To use the Terminal ui use api.main
+
 # --- Configuration ---
 PYTHON_EXECUTABLE = sys.executable
 # The command to run FastAPI with Uvicorn. We will add --port dynamically.

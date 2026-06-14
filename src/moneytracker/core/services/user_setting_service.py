@@ -8,9 +8,11 @@ from moneytracker.core.exceptions import (
     ServiceDuplicateCurrencyError,
     ServiceError,
     ServiceInvalidCurrencyError,
+    ServiceSettingNotAllowedError,
     ServiceSettingNotFoundError,
 )
 from moneytracker.core.services.exc_rate_service import ExchangeRateService
+from moneytracker.default_settings import DEFAULT_CURRENCY_NAME
 from moneytracker.infrastructure.job_manager import complete_task
 from moneytracker.infrastructure.sqlite.unit_of_work import UnitOfWork
 from moneytracker.infrastructure.worker import (
@@ -59,6 +61,33 @@ class UserSettingService:
             if not setting:
                 logger.debug(f"Setting with name:{setting_name} not present in the database")
                 raise ServiceSettingNotFoundError("Setting not found")
+
+            # In this case only 1 setting is returned
+            if setting[0].constrained:
+                allowed = [all["item_value"] for all in setting[0].allowed_settings]
+                if value not in allowed:
+                    logger.debug(
+                        f"Allowed setting for setting {setting_name} doesn't"
+                        f" contain the item_value {value}"
+                    )
+                    raise ServiceSettingNotAllowedError("Setting not allowed")
+
+            if setting_name == DEFAULT_CURRENCY_NAME:
+                if not isinstance(value, str):
+                    logging.debug(
+                        f"The given default currency: {value} doesn't have the correct instance."
+                    )
+                    raise ServiceSettingNotAllowedError("Default currency must be a str")
+
+                with uow:
+                    curr_list = uow.user_setting.get_user_currency(id_user, None)
+                    curr_list = [curr.code for curr in curr_list]
+                if value.upper() not in curr_list:
+                    logging.debug(
+                        f"The given default currency: {value} doesn't pertain to the user"
+                        f" with id_user: {id_user}."
+                    )
+                    raise ServiceSettingNotAllowedError("Default currency not present.")
 
             args = (id_user, setting_name, value)
             complete_task(ADD_SETTING_TASK_NAME, args)

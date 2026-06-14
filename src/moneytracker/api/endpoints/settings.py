@@ -12,6 +12,7 @@ from moneytracker.core.exceptions import (
     ServiceDuplicateCurrencyError,
     ServiceError,
     ServiceInvalidCurrencyError,
+    ServiceSettingNotAllowedError,
     ServiceSettingNotFoundError,
     SettingNotFoundException,
 )
@@ -40,6 +41,8 @@ def add_or_update_setting(
 
     except ServiceSettingNotFoundError:
         raise SettingNotFoundException()
+    except ServiceSettingNotAllowedError:
+        raise BadRequestException()
     except ServiceError:
         raise InternalServerErrorException()
 

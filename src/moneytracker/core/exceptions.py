@@ -113,6 +113,13 @@ class ServiceSettingNotFoundError(ServiceError):
     pass
 
 
+class ServiceSettingNotAllowedError(ServiceError):
+    """Raised when a constrained setting doesn't have the given have the
+    given item_value as allowed option."""
+
+    pass
+
+
 class ServiceDuplicateCurrencyError(ServiceError):
     """Raised when trying to insert currencies that are already present in the
     database for the given user."""
