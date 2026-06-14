@@ -1,4 +1,5 @@
 import json
+import secrets
 import logging
 import os
 import socket
@@ -15,6 +16,7 @@ HOST_KEY = "host"
 PORT_KEY = "port"
 LOG_LEVEL_KEY = "log_level"  # log level, used both for uvicorn and the server
 TUI_MODE_KEY = "tui_mode"
+SECRET_KEY_KEY = "secret_key"
 
 
 class AppConfig:
@@ -115,6 +117,23 @@ class AppConfig:
 
         logging.config.dictConfig(LOGGING_CONFIG)
 
+    def get_or_create_secret_key(self) -> str:
+        """Return the persistent JWT secret key for this installation.
+
+        On the very first call the key does not exist yet, so a
+        cryptographically random 32-byte hex string is generated, stored
+        in the config JSON, and returned. Every subsequent call simply
+        loads and returns the stored value.
+        """
+        settings = self._open_josn()
+        key = settings.get(SECRET_KEY_KEY)
+
+        if not key:
+            key = secrets.token_hex(32)
+            self.edit_config(SECRET_KEY_KEY, key)
+
+        return key
+
     def edit_config(self, key: str, value) -> None:
         config_file = self.get_config_file_path()
 
@@ -135,6 +154,7 @@ class AppConfig:
             PORT_KEY: None,
             LOG_LEVEL_KEY: None,
             TUI_MODE_KEY: None,
+            SECRET_KEY_KEY: None,
         }
 
         if not os.path.exists(config_file):
@@ -150,6 +170,7 @@ class AppConfig:
                 or PORT_KEY not in settings
                 or LOG_LEVEL_KEY not in settings
                 or TUI_MODE_KEY not in settings
+                or SECRET_KEY_KEY not in settings
             ):
                 # reading was successfull (no problem with the json) but a parameter is
                 # missing. Can happen when this script is modified but the json file is not.
@@ -160,6 +181,7 @@ class AppConfig:
                     settings[PORT_KEY] = settings.get(PORT_KEY, None)
                     settings[LOG_LEVEL_KEY] = settings.get(LOG_LEVEL_KEY, None)
                     settings[TUI_MODE_KEY] = settings.get(TUI_MODE_KEY, None)
+                    settings[SECRET_KEY_KEY] = settings.get(SECRET_KEY_KEY, None)
 
                     json.dump(settings, file)
 
