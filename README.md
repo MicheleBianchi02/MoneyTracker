@@ -69,6 +69,68 @@ MoneyTracker gives you complete control over your financial data. It tracks your
 
 ---
 
+## Building a Release Binary
+
+> These steps are for **developers** who want to produce a distributable binary.
+> End-users should follow the [Installing from a Binary Release](#-installing-from-a-binary-release) section below.
+
+### Prerequisites
+
+- The project venv must be active and all dependencies installed (`pip install -e .`)
+- PyInstaller must be present in the venv (it is included as a dev dependency)
+
+### Build
+
+```bash
+./build.sh
+```
+
+The script will:
+1. Clean any previous `build/` and `dist/` directories
+2. Run PyInstaller using `moneytracker.spec`
+3. Produce `dist/moneytracker/` — the self-contained application directory
+4. Package it into `moneytracker-linux-<arch>.tar.gz` ready for upload to a GitHub Release
+
+---
+
+## Installing from a Binary Release
+
+> These steps are for **end-users** who downloaded the pre-built binary from the GitHub Releases page.
+
+1. **Download** `moneytracker-linux-x86_64.tar.gz` (or `aarch64`) from the [Releases](../../releases) page.
+
+2. **Extract** the bundle to a permanent location (e.g. `/opt`):
+
+   ```bash
+   tar -xzf moneytracker-linux-x86_64.tar.gz -C ~/.local/
+   ```
+
+   This creates `/opt/moneytracker/` containing the executable and its bundled runtime.
+
+3. **Create a symlink** so the command is available system-wide:
+
+   ```bash
+   sudo ln -s ~/.local/moneytracker/moneytracker /usr/local/bin/moneytracker
+   ```
+
+   > **Tip:** Use `~/.local/bin/` instead of `/usr/local/bin/` if you prefer a user-only install (no `sudo` needed). Make sure `~/.local/bin` is on your `$PATH`.
+
+4. **Run:**
+
+   ```bash
+   moneytracker --terminal
+   ```
+
+**All user data** (database, config, logs) is stored in your home directory under the standard XDG paths — never inside the installation directory. You can safely move or update the bundle without losing any data.
+
+| Path | Contents |
+|---|---|
+| `~/.local/share/MoneyTracker/` | SQLite database |
+| `~/.config/MoneyTracker/` | Server settings JSON |
+| `~/.local/state/MoneyTracker/` | Log files |
+
+---
+
 ## Usage
 
 MoneyTracker can be run in two modes: the **Terminal UI (TUI)** for interactive use, or as a **REST API server** for integration with other clients.
@@ -76,7 +138,7 @@ MoneyTracker can be run in two modes: the **Terminal UI (TUI)** for interactive 
 ### Run the Terminal UI (recommended)
 
 ```bash
-python -m moneytracker.api.main --terminal
+moneytracker --terminal
 ```
 
 On first launch you will be asked to choose a display mode:
@@ -91,7 +153,7 @@ You can save your preferred mode permanently when prompted.
 ### Run the REST API Server only
 
 ```bash
-python -m moneytracker.api.main
+moneytracker
 ```
 
 The server starts at `http://localhost:<port>` (configured in your app settings). Interactive API documentation is available at `http://localhost:<port>/docs`.

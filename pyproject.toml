@@ -16,7 +16,8 @@ requires-python = ">=3.12.3"
 dependencies = [
 "pydantic==2.11.7",
 "pytest==8.3.5",
-"Requests==2.32.4"
+"Requests==2.32.4",
+"platformdirs==4.3.8"
 ]
 
 [tool.pytest.ini_options]

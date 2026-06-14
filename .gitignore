@@ -31,6 +31,10 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# Exception: our spec file is intentionally tracked as source
+!moneytracker.spec
+# Release tarballs produced by build.sh
+*.tar.gz
 
 # Installer logs
 pip-log.txt
