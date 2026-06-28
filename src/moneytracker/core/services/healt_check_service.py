@@ -104,6 +104,7 @@ def check_deprecated(uow: UnitOfWork) -> None:
         else:
             currencies_present = True
             depr_currencies = []  # left empty here, used later
+            active_currencies = []
             active_currencies_code = [curr.code for curr in currencies]
 
         last_check = last_check - timedelta(days=60)
@@ -157,6 +158,8 @@ def check_deprecated(uow: UnitOfWork) -> None:
 
         else:
             if deprecated:
+                dep_dict = {}
+                active_currencies = []
                 for dep_curr in deprecated:
                     dep_dict[dep_curr["code"]] = dep_curr["deprecation_date"]
 

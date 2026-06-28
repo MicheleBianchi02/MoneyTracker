@@ -742,15 +742,15 @@ class TransactionService:
             with uow:
                 tr = uow.transaction.get_by_id_tr(id_tr)
 
-            if tr.id_user != id_user:
-                logger.debug("The transaction doesn't pertain to the user")
-                raise OperationNotPermittedError("The transaction doesn't pertain to the user")
-
             if tr is None:
                 logger.debug(f"Transaction not found with id_tr:{id_tr}")
                 raise ServiceTransactionNotFoundError(
                     """The transaction with the given id is not present in the database."""
                 )
+
+            if tr.id_user != id_user:
+                logger.debug("The transaction doesn't pertain to the user")
+                raise OperationNotPermittedError("The transaction doesn't pertain to the user")
 
             args = (id_tr,)
             complete_task(DELETE_TR_TASK_NAME, args)

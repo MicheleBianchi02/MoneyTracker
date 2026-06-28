@@ -70,8 +70,8 @@ def writer_worker(uow: UnitOfWork | None = None) -> None:
             end = _complete_task(uow)
 
         else:
-            with manage_uow() as uow:
-                end = _complete_task(uow)
+            with manage_uow() as _uow:
+                end = _complete_task(_uow)
 
         if end is not None:
             break
