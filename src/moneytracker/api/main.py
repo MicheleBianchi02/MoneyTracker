@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
+from moneytracker import utils
 from moneytracker.api.endpoints import categories, settings, transactions, users
 from moneytracker.api.security import Token, create_access_token
 from moneytracker.core.exceptions import (
@@ -145,8 +146,30 @@ if __name__ == "__main__":
         help="Run the application in terminal mode (TUI) instead of launching the GUI.",
     )
 
+    parser.add_argument(
+        "-l",
+        "--log",
+        action="store_true",
+        help="Print app logs",
+    )
+
+    parser.add_argument(
+        "--log-custom",
+        action="store_true",
+        help="Start custom log printing",
+    )
+
     args = parser.parse_args()
-    if args.terminal:
+
+    if args.log:
+        log_file = app_config.get_log_file_path()
+        utils.print_logs(log_file)
+
+    elif args.log_custom:
+        log_file = app_config.get_log_file_path()
+        utils.print_logs(log_file, interactive=True)
+
+    elif args.terminal:
         mode = server_config[TUI_MODE_KEY]
 
         if mode is None or mode not in [ALTERNATE_SCREEN_MODE, DELETE_SCREEN_MODE]:
@@ -207,7 +230,7 @@ if __name__ == "__main__":
         print()  # just to have a space between logging and the json
 
         uvicorn.run(
-            app,  # pass the object directly — string import breaks in PyInstaller bundles
+            app,
             host=host,
             port=int(port),
             log_level=log_level,

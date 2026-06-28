@@ -1,3 +1,239 @@
+import re
+import sys
+from datetime import datetime, timedelta, timezone
+
+from rich.console import Console
+from rich.prompt import Confirm, IntPrompt, Prompt
+
+# ---------- Configuration ----------
+LEVEL_ORDER = {
+    "TRACE": 10,
+    "DEBUG": 20,
+    "INFO": 30,
+    "WARNING": 40,
+    "ERROR": 50,
+    "CRITICAL": 60,
+}
+MAX_LEVEL_LEN = max(len(lvl) for lvl in LEVEL_ORDER)  # 8
+
+console = Console()
+# ------------------------------------
+
+
+def _parse_log_datetime(date_str: str) -> datetime:
+    """Convert a log date like '2026-06-28T14:37:16+0200' to a datetime."""
+    if date_str[-5] in "+-" and date_str[-4:].isdigit():
+        date_str = date_str[:-2] + ":" + date_str[-2:]
+    return datetime.fromisoformat(date_str)
+
+
+def _get_date_filter():
+    """Interactive date filter builder – returns callable or None."""
+    choice = Prompt.ask("Filter by date?", choices=["none", "range", "preset"], default="none")
+    if choice == "none":
+        return None
+
+    if choice == "preset":
+        preset = Prompt.ask(
+            "Choose a preset",
+            choices=["today", "last_hour", "last_24h", "last_7d"],
+            default="today",
+        )
+        now = datetime.now(timezone.utc)
+        if preset == "today":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now
+        elif preset == "last_hour":
+            start = now - timedelta(hours=1)
+            end = now
+        elif preset == "last_24h":
+            start = now - timedelta(days=1)
+            end = now
+        elif preset == "last_7d":
+            start = now - timedelta(days=7)
+            end = now
+        else:
+            return None
+    else:  # range
+        start_str = Prompt.ask(
+            "Start date/time (YYYY-MM-DD[THH:MM:SS])", default="2020-01-01T00:00:00"
+        )
+        end_str = Prompt.ask("End date/time (YYYY-MM-DD[THH:MM:SS])", default="now")
+        try:
+            start = (
+                datetime.fromisoformat(start_str)
+                if start_str.lower() != "now"
+                else datetime.now(timezone.utc)
+            )
+            end = (
+                datetime.fromisoformat(end_str)
+                if end_str.lower() != "now"
+                else datetime.now(timezone.utc)
+            )
+        except ValueError:
+            console.print("[yellow]Invalid date format, no date filter applied.[/]")
+            return None
+
+    # Make offset-aware
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+
+    return lambda date_str: start <= _parse_log_datetime(date_str) <= end
+
+
+def _get_level_filter():
+    """Interactive level filter – returns list of levels or None for all."""
+    choice = Prompt.ask(
+        "How would you like to view logs?", choices=["all", "filter"], default="all"
+    )
+    if choice == "all":
+        return None
+
+    mode = Prompt.ask("Filter by ([green]threshold[/], [green]specific[/]):", choices=["th", "sp"])
+
+    if mode == "th":
+        level_names = list(LEVEL_ORDER.keys())
+        base = Prompt.ask("Baseline level", choices=level_names, default="WARNING")
+        inclusive = Confirm.ask("Include entries AT this level?", default=True)
+        base_sev = LEVEL_ORDER[base]
+        allowed = [
+            lvl
+            for lvl, sev in LEVEL_ORDER.items()
+            if (sev >= base_sev if inclusive else sev > base_sev)
+        ]
+        return allowed
+    else:  # specific
+        raw = Prompt.ask("Enter levels separated by commas (e.g. ERROR,CRITICAL)")
+        wanted = {s.strip().upper() for s in raw.split(",") if s.strip()}
+        invalid = wanted - set(LEVEL_ORDER)
+        if invalid:
+            console.print(f"[yellow]Ignoring unknown levels: {', '.join(invalid)}[/]")
+        return [lvl for lvl in LEVEL_ORDER if lvl in wanted]
+
+
+def _get_num_logs() -> int:
+    choice = 0
+    while choice <= 0:
+        choice = IntPrompt.ask("Number of logs: ", default=100)
+    return choice
+
+
+def format_log_line(line: str) -> str:
+    """Apply color to the LEVEL field with padding and fancy separators."""
+    colors = {
+        "CRITICAL": "\033[1;31m",
+        "ERROR": "\033[0;31m",
+        "WARNING": "\033[0;33m",
+        "INFO": "\033[0;32m",
+        "DEBUG": "\033[0;36m",
+        "TRACE": "\033[0;35m",
+        "RESET": "\033[0m",
+    }
+
+    try:
+        date, level, module, func_name, line_num, message = line.split(" - ", 5)
+    except ValueError:
+        return line  # unparseable – leave as is
+
+    level_stripped = level.strip()
+    padded_level = f"{level_stripped: <{MAX_LEVEL_LEN}}"
+    color = colors.get(level_stripped, "")
+    reset = colors["RESET"] if color else ""
+
+    separator_color = "\033[95m"
+    sep1 = f"{separator_color}|{reset}"
+    sep2 = f"{separator_color}:{reset}"
+
+    date_colored = f"\033[94m{date}{reset}"
+    module_colored = (
+        f"\033[90m{module}{sep2}\033[90m{func_name}{reset}{sep2}\033[90m{line_num}{reset}"
+    )
+
+    return f"{date_colored} {sep1} {color}{padded_level}{reset} {sep1} {module_colored} {sep1} {message}"
+
+
+def _parse_level(line: str) -> str:
+    """Extract the level field from a log line (FIXED field order)."""
+    try:
+        # date, level, module, func, line, message
+        _, level, _, _, _, _ = line.split(" - ", 5)
+        return level.strip().upper()
+    except ValueError:
+        return ""
+
+
+def print_logs(log_file: str, interactive: bool = False, num_entries: int = 100) -> None:
+    """
+    Print the last `num_entries` log entries matching interactive filters.
+    """
+    log_start = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+
+    # --- Obtain filters (interactive or none) ---
+    if interactive:
+        date_filter = _get_date_filter()
+        levels = _get_level_filter()
+        num_entries = _get_num_logs()
+    else:
+        date_filter = None
+        levels = None
+
+    allowed_levels = None
+    if levels is not None:
+        if len(levels) == 0:
+            console.print("[dim]Level list empty.[/]")
+            return
+        allowed_levels = {lvl.strip().upper() for lvl in levels}
+
+    # --- Group entries (single pass) ---
+    all_entries = []
+    current = []
+    with open(log_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if log_start.match(line):
+                if current:
+                    all_entries.append(current)
+                current = [line]
+            else:
+                current.append(line)
+        if current:
+            all_entries.append(current)
+
+    # --- Apply filters ---
+    filtered = []
+    for entry in all_entries:
+        first_line = entry[0]
+
+        # Level check
+        if allowed_levels is not None:
+            if _parse_level(first_line) not in allowed_levels:
+                continue
+
+        # Date check
+        if date_filter is not None:
+            try:
+                date_str, _, _, _, _, _ = first_line.split(" - ", 5)
+                if not date_filter(date_str.strip()):
+                    continue
+            except ValueError:
+                continue  # skip unparseable lines
+
+        filtered.append(entry)
+
+    # --- Keep only the last `num_entries` ---
+    if len(filtered) > num_entries:
+        filtered = filtered[-num_entries:]
+
+    # --- Print ---
+    print("\n")
+    for entry in filtered:
+        for line in entry:
+            if log_start.match(line):
+                line = format_log_line(line)
+            sys.stdout.write(line)
+
+
 def format_value(value: int | float, format: str) -> str:
     """Change the number formatting given the desired format.
 

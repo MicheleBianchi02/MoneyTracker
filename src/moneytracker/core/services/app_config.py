@@ -1,7 +1,7 @@
 import json
-import secrets
 import logging
 import os
+import secrets
 import socket
 
 from platformdirs import PlatformDirs
@@ -83,10 +83,10 @@ class AppConfig:
             "disable_existing_loggers": False,
             "formatters": {
                 "standard": {
-                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                    "format": "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
                 },
                 "detailed": {
-                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s",
+                    "format": "%(asctime)s - %(levelname)s - %(name)s - %(module)s - %(lineno)d - %(message)s",
                     "datefmt": "%Y-%m-%dT%H:%M:%S%z",  # z is the the offset to the UTC time in hours
                 },
             },

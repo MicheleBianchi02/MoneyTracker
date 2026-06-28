@@ -1,5 +1,4 @@
 import logging
-import logging.config
 import threading
 
 from moneytracker.core.exceptions import (
