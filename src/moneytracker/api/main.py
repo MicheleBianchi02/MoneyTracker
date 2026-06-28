@@ -207,7 +207,7 @@ if __name__ == "__main__":
         print()  # just to have a space between logging and the json
 
         uvicorn.run(
-            "moneytracker.api.main:app",
+            app,  # pass the object directly — string import breaks in PyInstaller bundles
             host=host,
             port=int(port),
             log_level=log_level,
